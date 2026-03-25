@@ -1,0 +1,61 @@
+version: 0.2
+
+parameter-store:
+    # Parameter store environment variables
+    NAMESPACE: "/cove/staging/cove-backend"
+    
+phases:
+  install:
+    runtime-versions:
+      java: corretto17  # Use the appropriate Java version
+    commands:
+      - echo Installing Maven
+      - yum install -y maven
+
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo Installing kubectl
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/kubectl
+      - echo Configuring kubectl to use the EKS cluster...
+      - aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_DEFAULT_REGION
+      - echo "Diagnostic information"
+      - kubectl version --client
+      - aws sts get-caller-identity
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - mvn clean install  # Build the Maven project
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - echo "Current namespaces:"
+      - kubectl get namespaces
+      - echo "Deploying to EKS..."
+      - sed -i.bak -e 's|${ECR_REPO_URL}|'"$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME"'|' -e 's|${IMAGE_TAG}|'"$IMAGE_TAG"'|' -e 's|${NAMESPACE}|'"$NAMESPACE"'|' kubernetes/deployment.yaml kubernetes/service.yaml
+      - echo "Contents of deployment.yaml:"
+      - cat kubernetes/deployment.yaml
+      - kubectl apply -f kubernetes/deployment.yaml -n $NAMESPACE --validate=false
+      - echo "Applying service"
+      - kubectl apply -f kubernetes/service.yaml -n $NAMESPACE --validate=false
+      - echo "Checking if deployment exists..."
+      - |
+        if kubectl get deployment cove-user-backend -n $NAMESPACE; then
+          echo "Deployment exists. Triggering rollout restart..."
+          kubectl rollout restart deployment/cove-user-backend -n $NAMESPACE
+        else
+          echo "Deployment does not exist. It has been created."
+        fi
+      - echo "Deployment status"
+      - kubectl get deployments -n $NAMESPACE
+      - kubectl get services -n $NAMESPACE
