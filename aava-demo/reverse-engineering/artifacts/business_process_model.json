@@ -1,0 +1,1101 @@
+{
+  "application_purpose_summary": {
+    "elevator_pitch": "COVE User Service is a reactive Spring Boot microservice that manages user authentication, registration, and onboarding workflows for the COVE platform. It provides JWT-based authentication with role-based access control (CUSTOMER and ADMIN roles), an admin-approval workflow for new user registrations, and integration with external OneView API for project performance data. The system is deployed on AWS EKS with automated CI/CD pipelines.",
+    "primary_capabilities": [
+      {
+        "name": "User Registration and Onboarding",
+        "description": "Allows new users to register with the system. Registrations enter a pending approval state and require admin review before users can authenticate. Email notifications are sent at each onboarding stage (pending, approved, rejected).",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java",
+          "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java",
+          "aava-demo/reverse-engineering/artifacts/domain_model.json"
+        ],
+        "confidence": "high"
+      },
+      {
+        "name": "JWT-Based Authentication",
+        "description": "Provides stateless authentication using short-lived access tokens (30 minutes) and long-lived refresh tokens (24 hours). Tokens are stored in the database with expiration and revocation flags. Supports token refresh and revocation workflows.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java",
+          "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java",
+          "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"
+        ],
+        "confidence": "high"
+      },
+      {
+        "name": "Admin User Management",
+        "description": "Enables administrators to approve or reject user registrations, activate or deactivate user accounts, change user roles, and view user details with pagination and filtering. All admin actions are logged in an audit trail.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java",
+          "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java",
+          "aava-demo/reverse-engineering/artifacts/domain_model.json"
+        ],
+        "confidence": "high"
+      },
+      {
+        "name": "Audit and Compliance Logging",
+        "description": "Records all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) with timestamps and admin attribution. Provides paginated audit log retrieval with filtering.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java",
+          "aava-demo/reverse-engineering/artifacts/data_model.json"
+        ],
+        "confidence": "high"
+      },
+      {
+        "name": "External Performance Data Integration",
+        "description": "Integrates with external OneView API to fetch project performance metrics and RAG (Red-Amber-Green) status data for clients. Provides a single endpoint for performance data retrieval.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java",
+          "aava-demo/reverse-engineering/artifacts/integration_catalog.json"
+        ],
+        "confidence": "high"
+      }
+    ],
+    "out_of_scope_signals": [
+      {
+        "signal": "No password reset or forgot password functionality detected",
+        "evidence": ["aava-demo/reverse-engineering/artifacts/repository_summary.json"],
+        "confidence": "high"
+      },
+      {
+        "signal": "No multi-factor authentication (MFA) implementation found",
+        "evidence": ["aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+        "confidence": "high"
+      },
+      {
+        "signal": "No API documentation (Swagger/OpenAPI) detected",
+        "evidence": ["aava-demo/reverse-engineering/artifacts/repository_summary.json"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "business_processes": {
+    "processes": [
+      {
+        "process_id": "proc_user_registration",
+        "name": "User Registration",
+        "description": "A new user submits registration details (email, password, name, company, etc.) via the /register endpoint. The system validates the email uniqueness, hashes the password with BCrypt, creates a user record with pending_approval status, and sends a pending approval email notification. The user cannot authenticate until an admin approves the registration.",
+        "actors": [
+          {
+            "type": "human",
+            "name": "New User",
+            "notes": "Individual registering for a COVE account",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"]
+          },
+          {
+            "type": "system",
+            "name": "COVE User Service",
+            "notes": "Processes registration request, validates data, stores user entity",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"]
+          },
+          {
+            "type": "system",
+            "name": "Gmail SMTP",
+            "notes": "Sends pending approval email notification",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"]
+          }
+        ],
+        "triggers": [
+          {
+            "trigger_type": "API request",
+            "description": "POST /register with user registration payload (email, password, firstname, lastname, company, etc.)",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+            "confidence": "high"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "reg_step_1",
+            "order": 1,
+            "name": "Receive Registration Request",
+            "business_description": "User submits registration details via POST /register endpoint",
+            "system_touchpoint": "AuthRestController",
+            "inputs": ["AuthUser (email, password, firstname, lastname, company, country, designation, clientId, clientName, clientOneView)"],
+            "outputs": [],
+            "integrations": [],
+            "authorization_notes": "Public endpoint; no authentication required",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "reg_step_2",
+            "order": 2,
+            "name": "Validate Email Uniqueness",
+            "business_description": "System checks if email already exists in the database. If email exists, registration fails with error.",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["email"],
+            "outputs": ["validation result"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "reg_step_3",
+            "order": 3,
+            "name": "Hash Password",
+            "business_description": "System hashes the user's password using BCrypt before storage",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["plain text password"],
+            "outputs": ["BCrypt hashed password"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "reg_step_4",
+            "order": 4,
+            "name": "Create User Entity",
+            "business_description": "System creates a UserEntity with onboardingStatus set to pending_approval, isActive set to false, and stores it in the users table",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["AuthUser payload"],
+            "outputs": ["UserEntity (stored in database)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "aava-demo/reverse-engineering/artifacts/data_model.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "reg_step_5",
+            "order": 5,
+            "name": "Send Pending Approval Email",
+            "business_description": "System sends an email notification to the user informing them that their registration is pending admin approval",
+            "system_touchpoint": "EmailServiceImpl",
+            "inputs": ["user email", "user name"],
+            "outputs": ["email sent confirmation"],
+            "integrations": ["Gmail SMTP"],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java", "aava-demo/reverse-engineering/artifacts/integration_catalog.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "reg_step_6",
+            "order": 6,
+            "name": "Return Success Response",
+            "business_description": "System returns HTTP 201 Created with success message to the user",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": [],
+            "outputs": ["SuccessResponse (message, status)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "variations_and_branches": [
+          {
+            "condition_summary": "Email already exists",
+            "branch_description": "If the email is already registered, the system throws a CustomException with status 400 and message 'User Creation Failed!'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Email send failure",
+            "branch_description": "If email notification fails, the system throws a CustomException with code 451 but user registration still succeeds (email failure does not roll back user creation)",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"],
+            "confidence": "medium"
+          }
+        ],
+        "outcomes": [
+          {
+            "outcome_type": "success",
+            "description": "User record created with pending_approval status; email notification sent; user awaits admin approval",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "failure",
+            "description": "Registration fails due to duplicate email or system error; user receives error response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "related_risks": []
+      },
+      {
+        "process_id": "proc_admin_onboarding_approval",
+        "name": "Admin Onboarding Approval",
+        "description": "An administrator reviews a pending user registration and updates the onboarding status to approved or rejected. If approved, the user account is activated and an approval email is sent. If rejected, the account remains inactive and a rejection email with admin comments is sent. All actions are logged in the audit trail.",
+        "actors": [
+          {
+            "type": "human",
+            "name": "Administrator",
+            "notes": "User with ADMIN role who reviews and approves/rejects registrations",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"]
+          },
+          {
+            "type": "system",
+            "name": "COVE User Service",
+            "notes": "Processes admin decision, updates user status, sends email notifications",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"]
+          },
+          {
+            "type": "system",
+            "name": "Gmail SMTP",
+            "notes": "Sends approval or rejection email notification",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"]
+          }
+        ],
+        "triggers": [
+          {
+            "trigger_type": "API request",
+            "description": "PUT /api/v1/admin/{toEmail}/onboarding-status with status parameter (approved, reject, or pending_approval) and optional description",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+            "confidence": "high"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "onboard_step_1",
+            "order": 1,
+            "name": "Receive Onboarding Status Update Request",
+            "business_description": "Admin submits onboarding status update via PUT /api/v1/admin/{toEmail}/onboarding-status endpoint with status and optional description",
+            "system_touchpoint": "AdminController",
+            "inputs": ["toEmail", "status (approved | reject | pending_approval)", "description (optional)", "JWT access token in headers"],
+            "outputs": [],
+            "integrations": [],
+            "authorization_notes": "Requires ADMIN role; JWT token validated via JwtTokenAuthenticationFilter",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java", "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_2",
+            "order": 2,
+            "name": "Extract Admin Email from Token",
+            "business_description": "System extracts the admin's email from the JWT access token to attribute the action",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["JWT access token"],
+            "outputs": ["admin email"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_3",
+            "order": 3,
+            "name": "Retrieve User Entity",
+            "business_description": "System retrieves the user entity by email from the users table. If user not found, process fails with error.",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["toEmail"],
+            "outputs": ["UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_4",
+            "order": 4,
+            "name": "Update Onboarding Status and Account Activation",
+            "business_description": "System updates the user's onboardingStatus field. If status is approved, isActive is set to true. If status is reject or pending_approval, isActive is set to false.",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["status"],
+            "outputs": ["updated UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_5",
+            "order": 5,
+            "name": "Send Email Notification",
+            "business_description": "System sends an email notification to the user based on the new status: approval email if approved, rejection email with description if rejected, no email if pending_approval",
+            "system_touchpoint": "EmailServiceImpl",
+            "inputs": ["user email", "user name", "status", "description (for rejection)"],
+            "outputs": ["email sent confirmation"],
+            "integrations": ["Gmail SMTP"],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_6",
+            "order": 6,
+            "name": "Log Action in Audit Trail",
+            "business_description": "System creates an ActionHistory record with admin email, user email, new status, description, and action type (OnBoarding Status)",
+            "system_touchpoint": "ActionHistoryServiceImpl",
+            "inputs": ["admin email", "user email", "status", "description", "action type"],
+            "outputs": ["ActionHistory entity (stored in database)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_7",
+            "order": 7,
+            "name": "Save Updated User Entity",
+            "business_description": "System persists the updated user entity to the users table",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["updated UserEntity"],
+            "outputs": ["saved UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "onboard_step_8",
+            "order": 8,
+            "name": "Return Success Response",
+            "business_description": "System returns HTTP 200 OK with success message to the admin",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": [],
+            "outputs": ["SuccessResponse (message, status)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "variations_and_branches": [
+          {
+            "condition_summary": "Status is approved",
+            "branch_description": "User account is activated (isActive = true) and approval email is sent",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Status is reject",
+            "branch_description": "User account remains inactive (isActive = false) and rejection email with admin comments is sent",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Status is pending_approval",
+            "branch_description": "User account remains inactive (isActive = false) and no email is sent",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "User not found",
+            "branch_description": "Process fails with CustomException 400 'User does not exist'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "outcomes": [
+          {
+            "outcome_type": "approved",
+            "description": "User onboarding status updated to approved; account activated; approval email sent; action logged",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "rejected",
+            "description": "User onboarding status updated to reject; account remains inactive; rejection email sent; action logged",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "failure",
+            "description": "Update fails due to user not found or system error; admin receives error response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "related_risks": []
+      },
+      {
+        "process_id": "proc_user_login",
+        "name": "User Login",
+        "description": "An approved and active user submits login credentials (email and password) via the /login endpoint. The system validates the credentials, checks the user's onboarding status and account activation state, revokes any existing tokens, generates new access and refresh tokens, stores them in the database, and returns them to the user.",
+        "actors": [
+          {
+            "type": "human",
+            "name": "Registered User",
+            "notes": "User with approved onboarding status and active account",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"]
+          },
+          {
+            "type": "system",
+            "name": "COVE User Service",
+            "notes": "Validates credentials, checks user status, generates and stores tokens",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"]
+          }
+        ],
+        "triggers": [
+          {
+            "trigger_type": "API request",
+            "description": "POST /login with AuthenticationRequest payload (email, password)",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+            "confidence": "high"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "login_step_1",
+            "order": 1,
+            "name": "Receive Login Request",
+            "business_description": "User submits login credentials via POST /login endpoint",
+            "system_touchpoint": "AuthRestController",
+            "inputs": ["AuthenticationRequest (email, password)"],
+            "outputs": [],
+            "integrations": [],
+            "authorization_notes": "Public endpoint; no authentication required",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_2",
+            "order": 2,
+            "name": "Retrieve User Entity",
+            "business_description": "System retrieves the user entity by email from the users table. If user not found, login fails with error.",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["email"],
+            "outputs": ["UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_3",
+            "order": 3,
+            "name": "Check Onboarding Status",
+            "business_description": "System checks the user's onboardingStatus. If not approved, login fails with appropriate error (pending_approval, reject, or invalid status).",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["onboardingStatus"],
+            "outputs": ["status validation result"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_4",
+            "order": 4,
+            "name": "Check Account Activation",
+            "business_description": "System checks the user's isActive flag. If false, login fails with error 'Your account has been deactivated'.",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["isActive"],
+            "outputs": ["activation validation result"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_5",
+            "order": 5,
+            "name": "Validate Password",
+            "business_description": "System compares the submitted password with the stored BCrypt hash. If passwords do not match, login fails with error 'Invalid username or password'.",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": ["plain text password", "stored BCrypt hash"],
+            "outputs": ["password validation result"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_6",
+            "order": 6,
+            "name": "Revoke Existing Access Tokens",
+            "business_description": "System revokes all existing access tokens for the user by setting revoked flag to true in the access_token table",
+            "system_touchpoint": "JwtAccessTokenUtil",
+            "inputs": ["UserEntity"],
+            "outputs": ["revoked access tokens"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_7",
+            "order": 7,
+            "name": "Generate New Access Token",
+            "business_description": "System generates a new JWT access token with 30-minute validity and stores it in the access_token table",
+            "system_touchpoint": "JwtAccessTokenUtil",
+            "inputs": ["email"],
+            "outputs": ["JWT access token"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_8",
+            "order": 8,
+            "name": "Revoke Existing Refresh Tokens",
+            "business_description": "System revokes all existing refresh tokens for the user by setting revoked flag to true in the refresh_token table",
+            "system_touchpoint": "JwtRefreshTokenUtil",
+            "inputs": ["UserEntity"],
+            "outputs": ["revoked refresh tokens"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_9",
+            "order": 9,
+            "name": "Generate New Refresh Token",
+            "business_description": "System generates a new JWT refresh token with 24-hour validity and stores it in the refresh_token table",
+            "system_touchpoint": "JwtRefreshTokenUtil",
+            "inputs": ["email"],
+            "outputs": ["JWT refresh token"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "login_step_10",
+            "order": 10,
+            "name": "Return Token Response",
+            "business_description": "System returns HTTP 200 OK with Token payload containing email, access token, and refresh token",
+            "system_touchpoint": "UserServiceImpl",
+            "inputs": [],
+            "outputs": ["Token (email, accessToken, refreshToken)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "variations_and_branches": [
+          {
+            "condition_summary": "User not found",
+            "branch_description": "Login fails with CustomException 403 'Invalid username or password'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Onboarding status is pending_approval",
+            "branch_description": "Login fails with CustomException 403 'Please wait for an email confirmation of your approval'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Onboarding status is reject",
+            "branch_description": "Login fails with CustomException 403 'Unfortunately, you have not been accepted'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Account is deactivated",
+            "branch_description": "Login fails with CustomException 403 'Your account has been deactivated'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "condition_summary": "Password does not match",
+            "branch_description": "Login fails with BadCredentialsException 'Invalid username or password'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "outcomes": [
+          {
+            "outcome_type": "success",
+            "description": "User authenticated successfully; new access and refresh tokens generated and returned; old tokens revoked",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "failure",
+            "description": "Login fails due to invalid credentials, pending approval, rejection, deactivation, or system error; user receives error response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "related_risks": []
+      },
+      {
+        "process_id": "proc_token_refresh",
+        "name": "Token Refresh",
+        "description": "A user with a valid refresh token requests a new access token via the /refresh-token endpoint. The system validates the refresh token, checks if it is expired or revoked, retrieves the associated user, generates a new access token, and returns it to the user.",
+        "actors": [
+          {
+            "type": "human",
+            "name": "Authenticated User",
+            "notes": "User with a valid refresh token",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"]
+          },
+          {
+            "type": "system",
+            "name": "COVE User Service",
+            "notes": "Validates refresh token, generates new access token",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"]
+          }
+        ],
+        "triggers": [
+          {
+            "trigger_type": "API request",
+            "description": "POST /refresh-token with token parameter (refresh token)",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+            "confidence": "high"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "refresh_step_1",
+            "order": 1,
+            "name": "Receive Refresh Token Request",
+            "business_description": "User submits refresh token via POST /refresh-token endpoint",
+            "system_touchpoint": "AuthRestController",
+            "inputs": ["refresh token"],
+            "outputs": [],
+            "integrations": [],
+            "authorization_notes": "Public endpoint; no authentication required (token validated in service layer)",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "refresh_step_2",
+            "order": 2,
+            "name": "Validate Refresh Token",
+            "business_description": "System validates the refresh token signature, expiration, and revocation status. If invalid, process fails with error.",
+            "system_touchpoint": "JwtRefreshTokenUtil",
+            "inputs": ["refresh token"],
+            "outputs": ["validation result"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java", "aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "medium"
+          },
+          {
+            "step_id": "refresh_step_3",
+            "order": 3,
+            "name": "Generate New Access Token",
+            "business_description": "System generates a new JWT access token with 30-minute validity",
+            "system_touchpoint": "JwtRefreshTokenUtil",
+            "inputs": ["user email from refresh token"],
+            "outputs": ["new JWT access token"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"],
+            "confidence": "medium"
+          },
+          {
+            "step_id": "refresh_step_4",
+            "order": 4,
+            "name": "Return Refresh Token Response",
+            "business_description": "System returns HTTP 200 OK with RefreshTokenResponse containing the new access token",
+            "system_touchpoint": "AuthServiceImpl",
+            "inputs": [],
+            "outputs": ["RefreshTokenResponse (new access token)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "variations_and_branches": [
+          {
+            "condition_summary": "Refresh token is invalid, expired, or revoked",
+            "branch_description": "Process fails with error; user must re-authenticate",
+            "evidence": ["aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "medium"
+          }
+        ],
+        "outcomes": [
+          {
+            "outcome_type": "success",
+            "description": "New access token generated and returned; user can continue authenticated session",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "failure",
+            "description": "Token refresh fails due to invalid or expired refresh token; user receives error response and must re-authenticate",
+            "evidence": ["aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json"],
+            "confidence": "medium"
+          }
+        ],
+        "related_risks": []
+      },
+      {
+        "process_id": "proc_admin_account_management",
+        "name": "Admin Account Management",
+        "description": "An administrator activates or deactivates a user account via the /api/v1/admin/{toEmail}/account-status endpoint. The system updates the user's isActive flag, logs the action in the audit trail, and returns a success response. No email notification is sent for account status changes.",
+        "actors": [
+          {
+            "type": "human",
+            "name": "Administrator",
+            "notes": "User with ADMIN role who manages user account activation",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"]
+          },
+          {
+            "type": "system",
+            "name": "COVE User Service",
+            "notes": "Processes admin decision, updates user account status, logs action",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"]
+          }
+        ],
+        "triggers": [
+          {
+            "trigger_type": "API request",
+            "description": "PUT /api/v1/admin/{toEmail}/account-status with status parameter (true for activate, false for deactivate) and optional description",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+            "confidence": "high"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "acct_step_1",
+            "order": 1,
+            "name": "Receive Account Status Update Request",
+            "business_description": "Admin submits account status update via PUT /api/v1/admin/{toEmail}/account-status endpoint with status (boolean) and optional description",
+            "system_touchpoint": "AdminController",
+            "inputs": ["toEmail", "status (true | false)", "description (optional)", "JWT access token in headers"],
+            "outputs": [],
+            "integrations": [],
+            "authorization_notes": "Requires ADMIN role; JWT token validated via JwtTokenAuthenticationFilter",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "acct_step_2",
+            "order": 2,
+            "name": "Extract Admin Email from Token",
+            "business_description": "System extracts the admin's email from the JWT access token to attribute the action",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["JWT access token"],
+            "outputs": ["admin email"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "acct_step_3",
+            "order": 3,
+            "name": "Retrieve User Entity",
+            "business_description": "System retrieves the user entity by email from the users table. If user not found, process fails with error.",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["toEmail"],
+            "outputs": ["UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "acct_step_4",
+            "order": 4,
+            "name": "Update Account Status",
+            "business_description": "System updates the user's isActive flag to the specified status (true for activated, false for deactivated)",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["status (boolean)"],
+            "outputs": ["updated UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "acct_step_5",
+            "order": 5,
+            "name": "Save Updated User Entity",
+            "business_description": "System persists the updated user entity to the users table",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["updated UserEntity"],
+            "outputs": ["saved UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "acct_step_6",
+            "order": 6,
+            "name": "Log Action in Audit Trail",
+            "business_description": "System creates an ActionHistory record with admin email, user email, new account status (Activated or Deactivated), description, and action type (Account Status)",
+            "system_touchpoint": "ActionHistoryServiceImpl",
+            "inputs": ["admin email", "user email", "account status", "description", "action type"],
+            "outputs": ["ActionHistory entity (stored in database)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "acct_step_7",
+            "order": 7,
+            "name": "Return Success Response",
+            "business_description": "System returns HTTP 200 OK with success message to the admin",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": [],
+            "outputs": ["SuccessResponse (message, status)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "variations_and_branches": [
+          {
+            "condition_summary": "User not found",
+            "branch_description": "Process fails with CustomException 400 'User does not exist'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "outcomes": [
+          {
+            "outcome_type": "success",
+            "description": "User account status updated; action logged; admin receives success response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "failure",
+            "description": "Update fails due to user not found or system error; admin receives error response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "related_risks": []
+      },
+      {
+        "process_id": "proc_admin_role_management",
+        "name": "Admin Role Management",
+        "description": "An administrator changes a user's role (CUSTOMER or ADMIN) via the /api/v1/admin/{toEmail}/role endpoint. The system updates the user's role field, logs the action in the audit trail, and returns a success response. No email notification is sent for role changes.",
+        "actors": [
+          {
+            "type": "human",
+            "name": "Administrator",
+            "notes": "User with ADMIN role who manages user roles",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"]
+          },
+          {
+            "type": "system",
+            "name": "COVE User Service",
+            "notes": "Processes admin decision, updates user role, logs action",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"]
+          }
+        ],
+        "triggers": [
+          {
+            "trigger_type": "API request",
+            "description": "PUT /api/v1/admin/{toEmail}/role with role parameter (CUSTOMER or ADMIN) and optional description",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+            "confidence": "high"
+          }
+        ],
+        "steps": [
+          {
+            "step_id": "role_step_1",
+            "order": 1,
+            "name": "Receive Role Update Request",
+            "business_description": "Admin submits role update via PUT /api/v1/admin/{toEmail}/role endpoint with role and optional description",
+            "system_touchpoint": "AdminController",
+            "inputs": ["toEmail", "role (CUSTOMER | ADMIN)", "description (optional)", "JWT access token in headers"],
+            "outputs": [],
+            "integrations": [],
+            "authorization_notes": "Requires ADMIN role; JWT token validated via JwtTokenAuthenticationFilter",
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "role_step_2",
+            "order": 2,
+            "name": "Extract Admin Email from Token",
+            "business_description": "System extracts the admin's email from the JWT access token to attribute the action",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["JWT access token"],
+            "outputs": ["admin email"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "role_step_3",
+            "order": 3,
+            "name": "Retrieve User Entity",
+            "business_description": "System retrieves the user entity by email from the users table. If user not found, process fails with error.",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["toEmail"],
+            "outputs": ["UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "role_step_4",
+            "order": 4,
+            "name": "Update User Role",
+            "business_description": "System updates the user's role field to the specified role (CUSTOMER or ADMIN, converted to uppercase)",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["role"],
+            "outputs": ["updated UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "role_step_5",
+            "order": 5,
+            "name": "Save Updated User Entity",
+            "business_description": "System persists the updated user entity to the users table",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": ["updated UserEntity"],
+            "outputs": ["saved UserEntity"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "role_step_6",
+            "order": 6,
+            "name": "Log Action in Audit Trail",
+            "business_description": "System creates an ActionHistory record with admin email, user email, new role, description, and action type (Role Status)",
+            "system_touchpoint": "ActionHistoryServiceImpl",
+            "inputs": ["admin email", "user email", "role", "description", "action type"],
+            "outputs": ["ActionHistory entity (stored in database)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "step_id": "role_step_7",
+            "order": 7,
+            "name": "Return Success Response",
+            "business_description": "System returns HTTP 200 OK with success message to the admin",
+            "system_touchpoint": "AdminServiceImpl",
+            "inputs": [],
+            "outputs": ["SuccessResponse (message, status)"],
+            "integrations": [],
+            "authorization_notes": null,
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "variations_and_branches": [
+          {
+            "condition_summary": "User not found",
+            "branch_description": "Process fails with CustomException 400 'User does not exist'",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "outcomes": [
+          {
+            "outcome_type": "success",
+            "description": "User role updated; action logged; admin receives success response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          },
+          {
+            "outcome_type": "failure",
+            "description": "Update fails due to user not found or system error; admin receives error response",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+            "confidence": "high"
+          }
+        ],
+        "related_risks": []
+      }
+    ]
+  },
+  "process_relationships": {
+    "relationships": [
+      {
+        "from_process_id": "proc_user_registration",
+        "to_process_id": "proc_admin_onboarding_approval",
+        "relationship_type": "precedes",
+        "notes": "User registration creates a pending approval record that triggers the admin onboarding approval process",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "from_process_id": "proc_admin_onboarding_approval",
+        "to_process_id": "proc_user_login",
+        "relationship_type": "precedes",
+        "notes": "Admin approval (with approved status) enables the user to proceed with login",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "from_process_id": "proc_user_login",
+        "to_process_id": "proc_token_refresh",
+        "relationship_type": "supports",
+        "notes": "Login generates a refresh token that is used in the token refresh process to obtain new access tokens",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "from_process_id": "proc_admin_account_management",
+        "to_process_id": "proc_user_login",
+        "relationship_type": "supports",
+        "notes": "Admin account deactivation prevents user login; account activation re-enables login",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "from_process_id": "proc_admin_role_management",
+        "to_process_id": "proc_admin_onboarding_approval",
+        "relationship_type": "parallel",
+        "notes": "Admin role management and onboarding approval are independent admin functions that can be performed in any order",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "medium"
+      }
+    ]
+  },
+  "stakeholder_views": {
+    "faq": [
+      {
+        "question": "What happens after a user registers?",
+        "answer": "After registration, the user receives a pending approval email and must wait for an administrator to review and approve their account. The user cannot log in until approved."
+      },
+      {
+        "question": "How long are access tokens valid?",
+        "answer": "Access tokens are valid for 30 minutes. Refresh tokens are valid for 24 hours. Users can use the refresh token to obtain a new access token without re-authenticating."
+      },
+      {
+        "question": "What happens if an admin deactivates a user account?",
+        "answer": "If an admin deactivates a user account, the user will receive an error message when attempting to log in. The user's existing tokens remain valid until they expire, but the user cannot obtain new tokens."
+      },
+      {
+        "question": "Are admin actions audited?",
+        "answer": "Yes, all admin actions (onboarding approval/rejection, account activation/deactivation, role changes) are logged in the action_history table with timestamps and admin attribution."
+      },
+      {
+        "question": "Can users reset their passwords?",
+        "answer": "No, password reset functionality is not currently implemented in the system."
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "inputs": {
+      "repo_url": "ramanohar/AAVA-Reverse-Engineering-POC",
+      "branch": "main",
+      "run_mode": "build",
+      "artifact_files_consumed": [
+        "repository_summary.json",
+        "dependency_graph.json",
+        "domain_model.json",
+        "integration_catalog.json",
+        "data_model.json",
+        "security_privacy_assessment.json"
+      ],
+      "tech_debt_risk_included": false
+    },
+    "source_read_prefixes": [
+      "src/main/java/com/collaberadigital/cove/controller/impl",
+      "src/main/java/com/collaberadigital/cove/service/impl"
+    ],
+    "limits_or_unknowns": [
+      "Token refresh process implementation details are partially inferred from security assessment; detailed code for JwtRefreshTokenUtil.generateNewRefreshToken not read",
+      "Token revocation logic details are inferred from login flow; explicit revocation endpoint behavior not fully traced",
+      "Email template content and rendering logic not analyzed; only service-level email sending logic reviewed",
+      "OneView API integration process not included as a primary business process (external data retrieval, not core user management workflow)",
+      "Admin user listing and filtering process not included (read-only query, not a state-changing workflow)",
+      "Action history retrieval process not included (read-only query, not a state-changing workflow)",
+      "Healthcheck endpoint not included (infrastructure monitoring, not a business process)",
+      "No workflow engine or batch processing detected; all processes are synchronous API-driven",
+      "No explicit business rules engine detected; validation and decision logic embedded in service layer",
+      "No evidence of scheduled jobs or background processes for user management"
+    ]
+  }
+}
