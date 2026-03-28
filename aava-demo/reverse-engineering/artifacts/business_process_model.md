@@ -1,810 +1,260 @@
-# Business Process Model: ramanohar/AAVA-Reverse-Engineering-POC
-
-**Generated:** 2025-01-16T12:00:00Z  
-**Repository:** ramanohar/AAVA-Reverse-Engineering-POC  
-**Branch:** main  
-**Run Mode:** build
-
----
+# Business Process Model
 
 ## Application Purpose
 
-### Elevator Pitch
-
-COVE User Service is a Spring Boot reactive microservice that manages user authentication, registration, and lifecycle for a multi-tenant system. It implements JWT-based authentication with role-based access control (CUSTOMER and ADMIN roles), an admin-approval onboarding workflow, and integrates with external OneView API for project performance data retrieval.
+**COVE User Service** is a reactive Spring Boot microservice that manages user authentication, registration, and onboarding workflows for the COVE platform. It provides JWT-based authentication with role-based access control (CUSTOMER and ADMIN roles), an admin-approval workflow for new user registrations, and integrates with external systems for performance data retrieval and email notifications.
 
 ### Primary Capabilities
 
-#### 1. User Registration and Onboarding
-
-New users can self-register with personal and company information. Registration triggers an admin approval workflow where accounts remain in pending_approval status until an administrator reviews and approves or rejects the request. Email notifications are sent at each workflow transition.
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java`
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-110`
-- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:45-75`
-
-**Confidence:** High
-
----
-
-#### 2. JWT-Based Authentication
-
-Users authenticate with email and password credentials. Upon successful login, the system issues a short-lived access token (30 minutes) and a long-lived refresh token (24 hours). Tokens are stored in the database with expiration and revocation flags for stateless session management.
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:125-165`
-- `src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java`
-- `src/main/resources/application-dev.properties:32-35`
-
-**Confidence:** High
-
----
-
-#### 3. Role-Based Access Control
-
-The system enforces role-based permissions with two roles: CUSTOMER (standard user with access to public endpoints) and ADMIN (privileged user with access to administrative functions including user management, onboarding approval, and audit log review).
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java:44-51`
-- `src/main/java/com/collaberadigital/cove/utils/constant/UserRole.java`
-
-**Confidence:** High
-
----
-
-#### 4. User Lifecycle Management
-
-Administrators can manage user accounts throughout their lifecycle: approve or reject onboarding requests, activate or deactivate accounts, change user roles, and view detailed user information. All administrative actions are logged in an audit trail.
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java`
-- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java`
-
-**Confidence:** High
-
----
-
-#### 5. Performance Data Integration
-
-The system integrates with an external OneView API to retrieve project performance metrics and RAG (Red-Amber-Green) status information for specific client accounts. This capability supports performance monitoring and reporting workflows.
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java`
-- `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java`
-
-**Confidence:** High
-
----
+- **User Registration and Onboarding**: New users register with personal and company information. Registrations enter a pending_approval state and trigger email notifications. Admins review and approve or reject registrations, with automated email notifications sent at each status change.
+- **JWT-Based Authentication**: Users authenticate with email and password. The system issues short-lived access tokens (30 minutes) and long-lived refresh tokens (24 hours). Tokens are stored in the database with expiration and revocation tracking. Token refresh and revocation endpoints support session management.
+- **Admin User Management**: Admins can update user onboarding status (approve/reject), activate or deactivate user accounts, change user roles (CUSTOMER/ADMIN), retrieve user details, and view paginated user lists with filtering by status, role, submission date, company, and active state.
+- **Audit and Action History**: All administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) are logged with timestamps, admin attribution, and optional comments. Admins can retrieve paginated action history with filtering by status, role, date, company, name, and email.
+- **External Performance Data Integration**: The system integrates with the OneView API to retrieve project performance metrics and RAG (Red-Amber-Green) status data for specified accounts and project types. This capability supports performance monitoring and reporting.
 
 ### Out of Scope
 
-- **Password reset functionality is not implemented** (Evidence: `aava-demo/reverse-engineering/artifacts/repository_summary.json:gaps_and_unknowns`)
-- **Multi-factor authentication (MFA) is not implemented** (Evidence: `aava-demo/reverse-engineering/artifacts/security_privacy_assessment.json:security_smells`)
+- No password reset or forgot password functionality detected
+- No multi-factor authentication (MFA) implementation found
+- No API documentation (Swagger/OpenAPI) detected
 
 ---
 
 ## Business Processes
 
-### Process 1: User Registration and Onboarding
+### User Registration
 
-**Process ID:** `proc_user_registration`
+**Process ID**: `proc_user_registration`
 
-**Description:** A new user self-registers by providing personal and company information. The system creates an account in pending_approval status and sends email notifications to the user and potentially administrators. An administrator must review and approve or reject the registration before the user can access the system.
+**Description**: A new user submits registration information including personal details, company, and credentials. The system validates the email uniqueness, hashes the password, stores the user record with pending_approval status, and sends a pending approval email notification.
 
-#### Actors
+**Actors**:
+- **Prospective User** (human): Individual registering for COVE platform access
+- **COVE User Service** (system): Handles registration logic, validation, and email notification
+- **Gmail SMTP** (system): Sends pending approval email notification
 
-- **Prospective User** (Human): Individual seeking to create an account in the COVE system
-- **Administrator** (Human): User with ADMIN role who reviews and approves or rejects registration requests
-- **Email Service** (System): Automated email notification system using Gmail SMTP
+**Triggers**:
+- API request: POST /register with user registration payload
 
-#### Triggers
+**Steps**:
 
-- **API request**: User submits registration form via POST /register endpoint
+1. **Validate Email Uniqueness**: System checks if the provided email address is already registered. If duplicate, registration fails. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-100`)
+2. **Hash Password**: System hashes the user's password using BCrypt before storage. (Evidence: `security_privacy_assessment.json`)
+3. **Store User Record**: System creates a new user record with onboarding status set to pending_approval and isActive set to false. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-110`)
+4. **Send Pending Approval Email**: System sends an email notification to the user informing them that their registration is pending admin approval. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java`)
 
-#### Process Steps
+**Variations**:
+- If email already exists, registration fails with error
+- If email sending fails, registration still succeeds but user does not receive notification
 
-##### Step 1: Submit Registration
-
-**Business Description:** Prospective user provides personal information (firstname, lastname, email, password, company, country, designation) and submits registration request.
-
-**System Touchpoint:** AuthRestController.register
-
-**Inputs:**
-- AuthUser: Registration form data including email, password, personal and company information (from User input)
-
-**Outputs:**
-- SuccessResponse: Confirmation message indicating registration submitted for approval (to User)
-
-**Authorization:** Public endpoint; no authentication required
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-110`
-
-**Confidence:** High
+**Outcomes**:
+- Registration successful; user awaits admin approval
+- Registration failed due to duplicate email
 
 ---
 
-##### Step 2: Validate and Create User
+### User Login
 
-**Business Description:** System validates that email is unique, hashes password with BCrypt, generates registration ID, sets onboarding status to pending_approval, and stores user record in database.
+**Process ID**: `proc_user_login`
 
-**System Touchpoint:** UserServiceImpl.registerUser
+**Description**: An approved and active user submits email and password credentials. The system validates credentials, checks onboarding status and account activation, revokes old tokens, generates new access and refresh tokens, stores them in the database, and returns tokens to the user.
 
-**Inputs:**
-- AuthUser: Validated registration data (from Step 1)
+**Actors**:
+- **Registered User** (human): User with approved onboarding status and active account
+- **COVE User Service** (system): Handles authentication logic, token generation, and validation
 
-**Outputs:**
-- UserEntity: Persisted user record with pending_approval status (to users table)
+**Triggers**:
+- API request: POST /login with email and password
 
-**Integrations:**
-- AWS RDS MySQL: INSERT into users table
+**Steps**:
 
-**Authorization:** Password hashed with BCrypt before storage
+1. **Validate User Exists**: System checks if a user record exists for the provided email. If not found, login fails. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:130-135`)
+2. **Check Onboarding Status**: System checks the user's onboarding status. Only users with approved status can proceed. Users with pending_approval or reject status receive specific error messages. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:135-175`)
+3. **Check Account Active Status**: System checks if the user account is active. Deactivated accounts cannot log in. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:140-145`)
+4. **Validate Password**: System compares the provided password with the stored BCrypt hash. If mismatch, login fails. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-155`)
+5. **Revoke Old Tokens**: System revokes all existing access and refresh tokens for the user to enforce single-session behavior. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-155`)
+6. **Generate Access Token**: System generates a new JWT access token with 30-minute validity and stores it in the database. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-155`, `repository_summary.json`)
+7. **Generate Refresh Token**: System generates a new JWT refresh token with 24-hour validity and stores it in the database. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-155`, `repository_summary.json`)
+8. **Return Tokens**: System returns the access token and refresh token to the user in the response payload. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-155`)
 
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-110`
-- `src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java`
+**Variations**:
+- If user does not exist, login fails with 'Invalid username or password' error
+- If onboarding status is pending_approval, login fails with 'Please wait for approval' error
+- If onboarding status is reject, login fails with 'You have not been accepted' error
+- If account is deactivated, login fails with 'Account has been deactivated' error
+- If password does not match, login fails with 'Invalid username or password' error
 
-**Confidence:** High
+**Outcomes**:
+- Login successful; user receives access and refresh tokens
+- Login failed due to invalid credentials, inactive account, or unapproved status
 
----
-
-##### Step 3: Send Pending Approval Email
-
-**Business Description:** System sends email notification to the newly registered user informing them that their account is pending administrator approval.
-
-**System Touchpoint:** EmailServiceImpl.sendEmailPendingApproval
-
-**Inputs:**
-- User email and name: Recipient information from UserEntity (from Step 2)
-
-**Outputs:**
-- Email notification: Pending approval email sent to user (to User email address)
-
-**Integrations:**
-- Gmail SMTP: Send email via SMTP
-
-**Authorization:** Email service uses configured SMTP credentials
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java:105-135`
-- `src/main/resources/templates/email-template-pending-approval.ftl`
-
-**Confidence:** High
+**Related Risks**:
+- No rate limiting on login endpoint (security_privacy_assessment.json: No Rate Limiting)
+- No account lockout after failed login attempts (security_privacy_assessment.json: No Account Lockout)
 
 ---
 
-##### Step 4: Administrator Reviews Registration
+### Admin Approve or Reject User
 
-**Business Description:** Administrator views list of pending user registrations, reviews user details, and decides to approve or reject the registration request. Administrator may provide comments explaining the decision.
+**Process ID**: `proc_admin_approve_user`
 
-**System Touchpoint:** AdminController.updateOnBoardingStatusController
+**Description**: An admin reviews a pending user registration and updates the onboarding status to approved or reject. If approved, the user account is activated and an approval email is sent. If rejected, the account remains inactive and a rejection email with optional comments is sent. The action is logged in the action history.
 
-**Inputs:**
-- User email, status (approved/reject), description: Administrator decision and optional comments (from Administrator input)
+**Actors**:
+- **Admin** (human): User with ADMIN role authorized to approve or reject registrations
+- **COVE User Service** (system): Handles onboarding status update, email notification, and audit logging
+- **Gmail SMTP** (system): Sends approval or rejection email notification
 
-**Outputs:**
-- Updated UserEntity: User record with updated onboarding status and account activation state (to users table)
-- ActionHistory: Audit log entry recording the administrative action (to action_history table)
+**Triggers**:
+- API request: PUT /api/v1/admin/{toEmail}/onboarding-status with status parameter (approved or reject) and optional description
 
-**Integrations:**
-- AWS RDS MySQL: UPDATE users table and INSERT into action_history table
+**Steps**:
 
-**Authorization:** Requires ADMIN role; JWT access token validated
+1. **Extract Admin Identity**: System extracts the admin's email from the JWT access token in the request header. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:44-50`)
+2. **Retrieve User Record**: System retrieves the user record by email. If not found, the operation fails. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:50-55`)
+3. **Update Onboarding Status**: System updates the user's onboarding status to the specified value (approved or reject). If approved, isActive is set to true. If rejected, isActive is set to false. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:55-70`)
+4. **Send Email Notification**: System sends an email notification to the user. If approved, sends approval email. If rejected, sends rejection email with optional description. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:55-70`)
+5. **Log Action History**: System creates an action history record with admin email, user email, new onboarding status, optional comments, and action type (UpdateOnBoardingStatus). (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:70-75`)
 
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:45-75`
-- `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java:PUT /{toEmail}/onboarding-status`
+**Variations**:
+- If user does not exist, operation fails with 'User does not exist' error
+- If status is approved, user account is activated and approval email is sent
+- If status is reject, user account remains inactive and rejection email with description is sent
+- If status is pending_approval, user account is set to inactive
 
-**Confidence:** High
-
----
-
-##### Step 5: Send Approval or Rejection Email
-
-**Business Description:** System sends email notification to the user informing them of the administrator's decision. If approved, user is notified they can now log in. If rejected, user receives explanation (if provided) and is informed they cannot access the system.
-
-**System Touchpoint:** EmailServiceImpl.sendEmailApproved or sendEmailReject
-
-**Inputs:**
-- User email, name, decision, comments: Notification details based on administrator decision (from Step 4)
-
-**Outputs:**
-- Email notification: Approval or rejection email sent to user (to User email address)
-
-**Integrations:**
-- Gmail SMTP: Send email via SMTP
-
-**Authorization:** Triggered automatically by administrator action
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java:40-100`
-- `src/main/resources/templates/email-template-approved.ftl`
-- `src/main/resources/templates/email-template-rejected.ftl`
-
-**Confidence:** High
+**Outcomes**:
+- User onboarding status updated successfully; email sent and action logged
+- Operation failed due to non-existent user
 
 ---
 
-#### Process Variations
+### Admin Manage User Account
 
-- **Email already registered**: If user attempts to register with an email that already exists in the system, registration fails immediately with error message. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-110`)
+**Process ID**: `proc_admin_manage_account`
 
-- **Administrator approves registration**: User onboarding status set to approved, account activated (isActive=true), approval email sent. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:50-55`)
+**Description**: An admin activates or deactivates a user account, or changes a user's role. Each action is logged in the action history with admin attribution and optional comments.
 
-- **Administrator rejects registration**: User onboarding status set to reject, account deactivated (isActive=false), rejection email with comments sent. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:56-60`)
+**Actors**:
+- **Admin** (human): User with ADMIN role authorized to manage user accounts
+- **COVE User Service** (system): Handles account status and role updates, and audit logging
 
-#### Outcomes
+**Triggers**:
+- API request: PUT /api/v1/admin/{toEmail}/account-status with status parameter (true for activate, false for deactivate) and optional description
+- API request: PUT /api/v1/admin/{toEmail}/role with role parameter (CUSTOMER or ADMIN) and optional description
 
-- **Success**: User registration approved; user can now log in and access the system
-- **Failure**: User registration rejected; user cannot access the system
-- **Pending**: User registration awaiting administrator review
+**Steps**:
 
----
+1. **Extract Admin Identity**: System extracts the admin's email from the JWT access token in the request header. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:80-85`)
+2. **Retrieve User Record**: System retrieves the user record by email. If not found, the operation fails. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:85-90`)
+3. **Update Account Status or Role**: System updates the user's isActive field (for account status) or role field (for role change) based on the request. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:90-110`)
+4. **Log Action History**: System creates an action history record with admin email, user email, new status or role, optional comments, and action type (UpdateUserAccountStatus or UpdateUserRoleStatus). (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:100-110`)
 
-### Process 2: User Authentication and Session Management
+**Variations**:
+- If user does not exist, operation fails with 'User does not exist' error
+- For account status update, isActive is set to true (activated) or false (deactivated)
+- For role update, role is set to CUSTOMER or ADMIN
 
-**Process ID:** `proc_user_authentication`
-
-**Description:** An approved user authenticates with email and password credentials. Upon successful authentication, the system issues JWT access and refresh tokens, revokes any existing tokens, and stores new tokens in the database. Users can refresh expired access tokens using refresh tokens or explicitly revoke tokens to log out.
-
-#### Actors
-
-- **Registered User** (Human): User with approved account attempting to log in
-- **JWT Token Service** (System): Generates, validates, and manages JWT access and refresh tokens
-
-#### Triggers
-
-- **API request**: User submits login credentials via POST /login endpoint
-- **API request**: User requests token refresh via POST /refresh-token endpoint
-- **API request**: User requests logout via POST /revoke-access-token or /revoke-refresh-token endpoint
-
-#### Process Steps
-
-##### Step 1: Submit Login Credentials
-
-**Business Description:** User provides email and password credentials via login form or API request.
-
-**System Touchpoint:** AuthRestController.login
-
-**Inputs:**
-- AuthenticationRequest: Email and password credentials (from User input)
-
-**Outputs:**
-- Token: JWT access token and refresh token (to User client)
-
-**Authorization:** Public endpoint; credentials validated against database
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java:POST /login`
-
-**Confidence:** High
+**Outcomes**:
+- User account status or role updated successfully; action logged
+- Operation failed due to non-existent user
 
 ---
 
-##### Step 2: Validate User Status
+### Token Refresh
 
-**Business Description:** System retrieves user record by email and validates onboarding status (must be approved) and account status (must be active). If user is rejected or pending approval, authentication fails with appropriate error message.
+**Process ID**: `proc_token_refresh`
 
-**System Touchpoint:** UserServiceImpl.loginUser
+**Description**: A user with a valid refresh token requests a new access token. The system validates the refresh token, generates a new access token, and optionally generates a new refresh token. Old tokens are revoked.
 
-**Inputs:**
-- Email: User email from login request (from Step 1)
+**Actors**:
+- **Authenticated User** (human): User with a valid refresh token
+- **COVE User Service** (system): Handles token validation, generation, and revocation
 
-**Outputs:**
-- UserEntity: User record with status validation (to Next step or error response)
+**Triggers**:
+- API request: POST /refresh-token with refresh token parameter
 
-**Integrations:**
-- AWS RDS MySQL: SELECT from users table
+**Steps**:
 
-**Authorization:** Validates onboarding status and account activation state
+1. **Validate Refresh Token**: System validates the refresh token signature, expiration, and revocation status. If invalid, the operation fails. (Evidence: `repository_summary.json`)
+2. **Generate New Access Token**: System generates a new JWT access token with 30-minute validity and stores it in the database. (Evidence: `repository_summary.json`)
+3. **Optionally Generate New Refresh Token**: System may generate a new refresh token and revoke the old one (token rotation strategy). (Evidence: `repository_summary.json`)
+4. **Return New Tokens**: System returns the new access token and optionally new refresh token to the user. (Evidence: `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java`)
 
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:135-175`
+**Variations**:
+- If refresh token is invalid, expired, or revoked, operation fails
 
-**Confidence:** High
-
----
-
-##### Step 3: Verify Password
-
-**Business Description:** System compares provided password with stored BCrypt hash. If passwords do not match, authentication fails with invalid credentials error.
-
-**System Touchpoint:** UserServiceImpl.loginUser
-
-**Inputs:**
-- Plain text password: Password from login request (from Step 1)
-- Hashed password: BCrypt hash from user record (from Step 2)
-
-**Outputs:**
-- Authentication result: Success or failure (to Next step or error response)
-
-**Authorization:** BCrypt password comparison
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-150`
-
-**Confidence:** High
+**Outcomes**:
+- New access token (and optionally new refresh token) issued successfully
+- Token refresh failed due to invalid or expired refresh token
 
 ---
 
-##### Step 4: Revoke Existing Tokens
+### Retrieve Performance Data
 
-**Business Description:** System marks all existing access tokens and refresh tokens for the user as revoked in the database to prevent reuse of old tokens.
+**Process ID**: `proc_retrieve_performance_data`
 
-**System Touchpoint:** JwtAccessTokenUtil.revokeAccessToken, JwtRefreshTokenUtil.revokeRefreshToken
+**Description**: A user requests project performance metrics and RAG status data for a specified account and optional project type. The system authenticates with the OneView API, retrieves the data, and returns filtered results.
 
-**Inputs:**
-- UserEntity: User record (from Step 2)
+**Actors**:
+- **Authenticated User** (human): User requesting performance data
+- **COVE User Service** (system): Handles OneView API integration and data filtering
+- **OneView API** (system): External API providing project performance and RAG status data
 
-**Outputs:**
-- Updated token records: Existing tokens marked as revoked (to access_token and refresh_token tables)
+**Triggers**:
+- API request: GET /performance with account and optional performanceType query parameters
 
-**Integrations:**
-- AWS RDS MySQL: UPDATE access_token and refresh_token tables
+**Steps**:
 
-**Authorization:** Ensures single active session per user
+1. **Authenticate with OneView API**: System sends a POST request to OneView API /user/signin with hardcoded credentials to obtain an access token. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45`)
+2. **Request Performance Data**: System sends a GET request to OneView API /ava/oneview/internal/api/dashboard/rag/list with current date and optional project type filter. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:50-75`)
+3. **Fallback to Previous Day**: If current day returns no data, system retries with previous day's date. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:70-90`)
+4. **Filter by Account**: System filters the performance data to include only projects matching the specified account. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:90-100`)
+5. **Return Performance Data**: System returns the filtered performance data to the user. (Evidence: `src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java`)
 
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:152-157`
+**Variations**:
+- If current day returns no data, system retries with previous day
+- If project type is specified and not 'All', system filters by project type
 
-**Confidence:** High
+**Outcomes**:
+- Performance data retrieved and returned successfully
+- Performance data retrieval failed due to OneView API error
 
----
-
-##### Step 5: Generate and Store New Tokens
-
-**Business Description:** System generates new JWT access token (30-minute validity) and refresh token (24-hour validity), signs them with secret key, and stores them in database with user association.
-
-**System Touchpoint:** JwtAccessTokenUtil.generateToken, JwtRefreshTokenUtil.generateRefreshToken
-
-**Inputs:**
-- User email: User identifier for token payload (from Step 2)
-
-**Outputs:**
-- Access token and refresh token: Signed JWT tokens (to User client)
-- Token records: Token metadata stored in database (to access_token and refresh_token tables)
-
-**Integrations:**
-- AWS RDS MySQL: INSERT into access_token and refresh_token tables
-
-**Authorization:** Tokens signed with HS256 algorithm using configured secret
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:152-160`
-- `src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java`
-
-**Confidence:** High
-
----
-
-##### Step 6: Return Tokens to User
-
-**Business Description:** System returns access token and refresh token to user client. User includes access token in Authorization header for subsequent API requests.
-
-**System Touchpoint:** AuthRestController.login
-
-**Inputs:**
-- Token objects: Generated tokens (from Step 5)
-
-**Outputs:**
-- Token response: JSON response with access_token and refresh_token (to User client)
-
-**Authorization:** Tokens transmitted over HTTPS
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:160`
-
-**Confidence:** High
-
----
-
-#### Process Variations
-
-- **User account is deactivated**: If user account is marked as inactive (isActive=false), authentication fails with deactivated account error even if credentials are correct. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:140-145`)
-
-- **User onboarding status is rejected**: If user onboarding status is reject, authentication fails with rejection message. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:170-175`)
-
-- **User onboarding status is pending approval**: If user onboarding status is pending_approval, authentication fails with pending approval message. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:176-180`)
-
-- **Access token expires**: When access token expires (after 30 minutes), user must use refresh token to obtain new access token via POST /refresh-token endpoint. (Evidence: `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java:POST /refresh-token`, `src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java:35-40`)
-
-- **User logs out**: User can explicitly revoke tokens by calling POST /revoke-access-token or /revoke-refresh-token endpoints. Revoking refresh token also revokes access token. (Evidence: `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java:POST /revoke-access-token`, `src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java:42-60`)
-
-#### Outcomes
-
-- **Success**: User successfully authenticated; access and refresh tokens issued
-- **Failure**: Authentication failed due to invalid credentials, deactivated account, or pending/rejected onboarding status
-
----
-
-### Process 3: Administrator User Lifecycle Management
-
-**Process ID:** `proc_admin_user_management`
-
-**Description:** Administrators manage user accounts throughout their lifecycle: approve or reject onboarding requests, activate or deactivate accounts, change user roles, view user details, and review paginated user lists with filtering. All administrative actions are logged in an audit trail for compliance and traceability.
-
-#### Actors
-
-- **Administrator** (Human): User with ADMIN role performing user management tasks
-- **Action History Service** (System): Audit logging service that records all administrative actions
-- **Email Service** (System): Sends notifications to users when their account status changes
-
-#### Triggers
-
-- **API request**: Administrator updates user onboarding status via PUT /api/v1/admin/{toEmail}/onboarding-status
-- **API request**: Administrator updates user account status via PUT /api/v1/admin/{toEmail}/account-status
-- **API request**: Administrator updates user role via PUT /api/v1/admin/{toEmail}/role
-- **API request**: Administrator views user details via GET /api/v1/admin/user-details/{email}
-- **API request**: Administrator views paginated user list via GET /api/v1/admin/users
-
-#### Process Steps
-
-##### Step 1: Authenticate Administrator
-
-**Business Description:** Administrator authenticates and obtains JWT access token. All admin endpoints require ADMIN role and valid access token in Authorization header.
-
-**System Touchpoint:** JwtTokenAuthenticationFilter
-
-**Inputs:**
-- JWT access token: Bearer token in Authorization header (from Administrator client)
-
-**Outputs:**
-- Authenticated user context: User identity and role extracted from token (to Security context)
-
-**Authorization:** Requires ADMIN role; token validated against database
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/security/JwtTokenAuthenticationFilter.java`
-- `src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java:44-51`
-
-**Confidence:** High
-
----
-
-##### Step 2: Select User Management Action
-
-**Business Description:** Administrator selects action to perform: approve/reject onboarding, activate/deactivate account, change role, view user details, or browse user list.
-
-**System Touchpoint:** AdminController
-
-**Inputs:**
-- Action type and parameters: Endpoint and request parameters (from Administrator input)
-
-**Outputs:**
-- Action request: Validated request routed to appropriate service method (to AdminService)
-
-**Authorization:** All admin endpoints protected by ADMIN role requirement
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java`
-
-**Confidence:** High
-
----
-
-##### Step 3: Execute User Management Action
-
-**Business Description:** System executes requested action: updates user record in database, sends email notification if applicable, and logs action in audit trail.
-
-**System Touchpoint:** AdminServiceImpl
-
-**Inputs:**
-- Action parameters: User email, new status/role, optional comments (from Step 2)
-
-**Outputs:**
-- Updated UserEntity: User record with updated status/role (to users table)
-- ActionHistory: Audit log entry (to action_history table)
-- Email notification: Optional email to user (to User email address)
-
-**Integrations:**
-- AWS RDS MySQL: UPDATE users table and INSERT into action_history table
-- Gmail SMTP: Send email notification
-
-**Authorization:** Administrator email extracted from JWT token for audit logging
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java`
-
-**Confidence:** High
-
----
-
-##### Step 4: Return Success Response
-
-**Business Description:** System returns success response to administrator confirming action completion.
-
-**System Touchpoint:** AdminController
-
-**Inputs:**
-- Service result: Success or error response from service layer (from Step 3)
-
-**Outputs:**
-- SuccessResponse or error: JSON response with status message (to Administrator client)
-
-**Authorization:** Response transmitted over HTTPS
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java`
-
-**Confidence:** High
-
----
-
-#### Process Variations
-
-- **Update onboarding status to approved**: User account activated (isActive=true), onboarding status set to approved, approval email sent. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:50-55`)
-
-- **Update onboarding status to rejected**: User account deactivated (isActive=false), onboarding status set to reject, rejection email with comments sent. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:56-60`)
-
-- **Activate or deactivate account**: User isActive flag updated to true or false, action logged in audit trail. No email notification sent for this action. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:80-110`)
-
-- **Change user role**: User role updated to CUSTOMER or ADMIN, action logged in audit trail. No email notification sent for this action. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:115-135`)
-
-- **View user details**: System retrieves and returns detailed user information for specified email address. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:140-155`)
-
-- **Browse paginated user list**: System returns paginated list of users with filtering by onboarding status, role, submission date, company, username, and active status. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:160-190`)
-
-#### Outcomes
-
-- **Success**: User management action completed successfully; user record updated, audit log created, notification sent if applicable
-- **Failure**: User management action failed due to invalid user email or system error
-
----
-
-### Process 4: Project Performance Data Retrieval
-
-**Process ID:** `proc_performance_data_retrieval`
-
-**Description:** The system retrieves project performance metrics and RAG (Red-Amber-Green) status information from an external OneView API for a specified client account. This process supports performance monitoring and reporting workflows by integrating real-time project health data.
-
-#### Actors
-
-- **User or Administrator** (Human): User requesting performance data for a client account
-- **OneView API** (System): External API providing project performance and RAG status data
-
-#### Triggers
-
-- **API request**: User requests performance data via GET /performance endpoint with account and optional performanceType parameters
-
-#### Process Steps
-
-##### Step 1: Receive Performance Data Request
-
-**Business Description:** User submits request for performance data specifying client account name and optional project type filter.
-
-**System Touchpoint:** PerformaceController.getPerformance
-
-**Inputs:**
-- account: Client account name (from User input)
-- performanceType: Optional project type filter (from User input)
-
-**Outputs:**
-- PerformanceResponse: List of projects with RAG status for specified account (to User client)
-
-**Authorization:** Public endpoint; no authentication required (potential security concern)
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java`
-
-**Confidence:** High
-
----
-
-##### Step 2: Authenticate with OneView API
-
-**Business Description:** System authenticates with external OneView API using hardcoded credentials to obtain access token.
-
-**System Touchpoint:** OneViewServiceImpl.getPerFormaceData
-
-**Inputs:**
-- Hardcoded credentials: Username and password for OneView API (from Configuration)
-
-**Outputs:**
-- X-Ava-Access-Token: OneView API access token (to Next step)
-
-**Integrations:**
-- OneView API: POST /user/signin
-
-**Authorization:** Uses hardcoded credentials (critical security risk)
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45`
-
-**Confidence:** High
-
----
-
-##### Step 3: Retrieve Performance Data for Current Date
-
-**Business Description:** System requests project performance data from OneView API for current date (today) with optional project type filter.
-
-**System Touchpoint:** OneViewServiceImpl.getPerFormaceData
-
-**Inputs:**
-- weekEndingDates: Current date in MM/dd/yyyy format (from System-generated)
-- projectTypes: Optional project type filter (from Step 1)
-- X-Ava-Access-Token: OneView API access token (from Step 2)
-
-**Outputs:**
-- PerformaceModel: List of projects with RAG status (to Next step)
-
-**Integrations:**
-- OneView API: GET /ava/oneview/internal/api/dashboard/rag/list
-
-**Authorization:** Uses custom X-Ava-Access-Token header
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:47-75`
-
-**Confidence:** High
-
----
-
-##### Step 4: Fallback to Previous Day if Empty
-
-**Business Description:** If current date returns no data, system automatically retries with previous day's date to ensure data availability.
-
-**System Touchpoint:** OneViewServiceImpl.getPerFormaceData
-
-**Inputs:**
-- weekEndingDates: Previous day date in MM/dd/yyyy format (from System-generated)
-- X-Ava-Access-Token: OneView API access token (from Step 2)
-
-**Outputs:**
-- PerformaceModel: List of projects with RAG status from previous day (to Next step)
-
-**Integrations:**
-- OneView API: GET /ava/oneview/internal/api/dashboard/rag/list
-
-**Authorization:** Fallback mechanism for data availability
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:77-95`
-
-**Confidence:** High
-
----
-
-##### Step 5: Filter by Client Account
-
-**Business Description:** System filters retrieved project list to include only projects matching the requested client account name.
-
-**System Touchpoint:** OneViewServiceImpl.getPerFormaceData
-
-**Inputs:**
-- deliveryRagProjectList: Full list of projects from OneView API (from Step 3 or 4)
-- account: Client account name filter (from Step 1)
-
-**Outputs:**
-- PerformanceResponse: Filtered list of projects with project name and RAG status (to User client)
-
-**Authorization:** Client-side filtering
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:96-105`
-
-**Confidence:** High
-
----
-
-#### Process Variations
-
-- **Current date returns no data**: System automatically falls back to previous day's data to ensure response contains performance information. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:77-95`)
-
-- **Project type filter specified**: If performanceType parameter is provided and not 'All', system includes projectTypes query parameter in OneView API request. (Evidence: `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:60-65`)
-
-#### Outcomes
-
-- **Success**: Performance data successfully retrieved and filtered for specified client account
-- **Failure**: Performance data retrieval failed due to OneView API authentication failure or network error
+**Related Risks**:
+- Hardcoded OneView API credentials in source code (security_privacy_assessment.json: Hardcoded Credentials)
 
 ---
 
 ## How Processes Relate
 
-### Relationship 1: User Registration → User Authentication
-
-**Type:** precedes
-
-**Description:** User must complete registration and receive admin approval before they can authenticate and access the system.
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:135-145`
-
-**Confidence:** High
-
----
-
-### Relationship 2: Administrator User Management → User Registration
-
-**Type:** supports
-
-**Description:** Administrator user management process completes the user registration workflow by approving or rejecting registration requests.
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:45-75`
-
-**Confidence:** High
-
----
-
-### Relationship 3: Administrator User Management → User Authentication
-
-**Type:** supports
-
-**Description:** Administrator can activate or deactivate user accounts, directly affecting user's ability to authenticate.
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java:80-110`
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:140-145`
-
-**Confidence:** High
-
----
-
-### Relationship 4: User Authentication → Performance Data Retrieval
-
-**Type:** parallel
-
-**Description:** Performance data retrieval is currently a public endpoint that does not require authentication, though this may be a security concern. In a typical workflow, authenticated users would request performance data.
-
-**Evidence:** `src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java`
-
-**Confidence:** Medium
-
----
-
-## Stakeholder FAQ
-
-### How long does it take for a new user registration to be approved?
-
-New user registrations are placed in pending_approval status immediately upon submission. The approval timeline depends on administrator availability to review the request. Users receive email notifications at each stage: pending approval, approved, or rejected.
-
----
-
-### What happens if a user's account is deactivated?
-
-When an administrator deactivates a user account (sets isActive to false), the user can no longer log in. Any login attempt will fail with a deactivated account error message, even if the user provides correct credentials. The administrator can reactivate the account at any time.
-
----
-
-### How long are access tokens valid?
-
-Access tokens are valid for 30 minutes. When an access token expires, users must use their refresh token to obtain a new access token without re-entering credentials. Refresh tokens are valid for 24 hours.
-
----
-
-### Are administrative actions audited?
-
-Yes, all administrative actions (onboarding status changes, account activation/deactivation, role changes) are logged in the action_history table with timestamps, administrator attribution, and optional comments. Administrators can view paginated audit logs via the /api/v1/admin/action-history endpoint.
-
----
-
-### What is the difference between onboarding status and account status?
-
-Onboarding status (pending_approval, approved, reject) governs the initial approval workflow for new registrations. Account status (isActive: true/false) governs whether an approved user can currently access the system. An approved user can be temporarily deactivated without changing their onboarding status.
+- **User Registration** precedes **Admin Approve or Reject User**: User registration creates a pending_approval record that triggers the admin approval process.
+- **Admin Approve or Reject User** precedes **User Login**: Admin approval (with approved status) enables the user to log in.
+- **User Login** supports **Token Refresh**: User login issues a refresh token that can be used in the token refresh process.
+- **Admin Approve or Reject User** and **Admin Manage User Account** are parallel: Admin approval and account management are independent administrative processes that can occur in any order after registration.
 
 ---
 
 ## Limits and Unknowns
 
-1. **tech_debt_risk.json artifact is missing** from prerequisite artifacts; no technical debt or risk references included in process model
-
-2. **Performance data retrieval endpoint (/performance) appears to be public** with no authentication requirement; security implications unclear
-
-3. **No explicit workflow engine or state machine detected**; process flows inferred from controller and service code
-
-4. **Batch or scheduled processes not detected** in repository; all processes appear to be API-triggered
-
-5. **Email notification failure handling not explicitly documented**; error behavior inferred from exception handling code
-
-6. **OneView API authentication uses hardcoded credentials** (critical security risk); credential rotation or expiration handling unknown
-
-7. **No evidence of password reset or forgot password workflow**
-
-8. **No evidence of multi-factor authentication (MFA) workflow**
-
-9. **User self-service account management** (profile updates, password changes) not detected
-
-10. **Bulk user import or provisioning workflows** not detected
+- `tech_debt_risk.json` artifact was not found on aava/reverse-index branch; no technical debt or risk signals incorporated.
+- Token refresh process details (step ordering, token rotation strategy) inferred from repository summary and integration catalog; detailed implementation not visible in read source.
+- OneView API contract details (request/response schemas, error handling) inferred from service implementation; no API specification available.
+- Email notification failure handling not explicitly documented; assumed to throw exception but registration still succeeds.
+- No workflow engine or batch scheduling detected; all processes are synchronous API-driven.
+- No password reset or forgot password process found; marked as out of scope.
+- No multi-factor authentication (MFA) process found; marked as out of scope.
+- Admin authorization enforcement (ADMIN role requirement) inferred from security configuration; detailed filter chain not analyzed.
+- Action history pagination and filtering logic inferred from repository method signatures; detailed JPQL queries not analyzed.
+- Performance data filtering logic (by account and project type) inferred from service implementation; no business rules documentation available.
 
 ---
 
 ## Evidence and Traceability
 
-All process descriptions, steps, and relationships are grounded in repository evidence. For machine-readable traceability links, refer to the `business_process_model.json` file in this artifacts folder. Each process step includes:
-
-- Evidence paths to source code files
-- Integration references to `integration_catalog.json`
-- Data entity references to `data_model.json` and `domain_model.json`
-- Security control references to `security_privacy_assessment.json`
+All process steps, variations, and outcomes are linked to source code paths, configuration files, and upstream artifact references in the JSON artifact (`business_process_model.json`). For machine-readable traceability, refer to the JSON file.
 
 ---
 
-**End of Business Process Model**
+**Generated**: 2025-01-16T12:00:00Z  
+**Repository**: ramanohar/AAVA-Reverse-Engineering-POC  
+**Branch**: main  
+**Run Mode**: build
