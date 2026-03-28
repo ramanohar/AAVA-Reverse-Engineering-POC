@@ -1,0 +1,755 @@
+{
+  "forward_engineering_handoff": {
+    "schema_version": "1.0",
+    "purpose": "This artifact provides high-level requirements and module breakdown derived from reverse engineering artifacts. It serves as a seed for forward engineering agents to elaborate detailed requirements, user stories, low-level design, and implementation plans.",
+    "recommended_next_agents": [
+      "elaborate_requirements",
+      "story_breakdown",
+      "future_state_architecture",
+      "lld",
+      "implementation"
+    ]
+  },
+  "module_breakdown": {
+    "modules": [
+      {
+        "module_id": "mod_authentication_authorization",
+        "name": "Authentication & Authorization Module",
+        "description": "Manages JWT-based stateless authentication with short-lived access tokens (30 min) and long-lived refresh tokens (24 hours). Provides token generation, validation, revocation, and refresh workflows. Enforces role-based access control (RBAC) with CUSTOMER and ADMIN roles. Stores tokens in database with expiration and revocation flags.",
+        "mapped_artifacts": [
+          {"artifact": "domain_model.json", "section_or_id": "bounded_contexts[1] (Authentication & Authorization)", "confidence": "high"},
+          {"artifact": "security_privacy_assessment.json", "section_or_id": "authorization_model_summary", "confidence": "high"},
+          {"artifact": "business_process_model.json", "section_or_id": "proc_user_login, proc_token_refresh", "confidence": "high"},
+          {"artifact": "data_model.json", "section_or_id": "logical_models (AccessToken, RefreshToken)", "confidence": "high"}
+        ],
+        "interfaces_summary": [
+          {"type": "inbound", "description": "REST API endpoints: POST /login, POST /check-access-token, POST /refresh-token, POST /revoke-access-token, POST /revoke-refresh-token"},
+          {"type": "outbound", "description": "Database access via AccessTokenRepo, RefreshTokenRepo, UserRepository"}
+        ],
+        "primary_technology_signals": ["Spring Security", "JWT (jjwt 0.11.5)", "BCrypt", "Spring Data JPA"]
+      },
+      {
+        "module_id": "mod_user_management",
+        "name": "User Management Module",
+        "description": "Handles user registration, profile management, onboarding workflow (pending_approval → approved/reject), account activation/deactivation, and role assignment. Integrates with email service for onboarding notifications. Supports paginated user listing and search.",
+        "mapped_artifacts": [
+          {"artifact": "domain_model.json", "section_or_id": "bounded_contexts[0] (User Management)", "confidence": "high"},
+          {"artifact": "business_process_model.json", "section_or_id": "proc_user_registration, proc_admin_onboarding_approval, proc_admin_account_management, proc_admin_role_management", "confidence": "high"},
+          {"artifact": "data_model.json", "section_or_id": "logical_models (UserEntity)", "confidence": "high"}
+        ],
+        "interfaces_summary": [
+          {"type": "inbound", "description": "REST API endpoints: POST /register, PUT /api/v1/admin/{toEmail}/onboarding-status, PUT /api/v1/admin/{toEmail}/account-status, PUT /api/v1/admin/{toEmail}/role, GET /api/v1/admin/user-details/{email}, GET /api/v1/admin/users"},
+          {"type": "outbound", "description": "Database access via UserRepository; Email notifications via EmailService"}
+        ],
+        "primary_technology_signals": ["Spring Boot", "Spring Data JPA", "MySQL", "BCrypt"]
+      },
+      {
+        "module_id": "mod_audit_compliance",
+        "name": "Audit & Compliance Module",
+        "description": "Records all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) with timestamps and admin attribution. Provides paginated audit log retrieval with filtering by date range, action type, and user email.",
+        "mapped_artifacts": [
+          {"artifact": "domain_model.json", "section_or_id": "bounded_contexts[2] (Audit & Compliance)", "confidence": "high"},
+          {"artifact": "business_process_model.json", "section_or_id": "proc_admin_onboarding_approval (step: Log Action in Audit Trail)", "confidence": "high"},
+          {"artifact": "data_model.json", "section_or_id": "logical_models (ActionHistory)", "confidence": "high"}
+        ],
+        "interfaces_summary": [
+          {"type": "inbound", "description": "REST API endpoint: GET /api/v1/admin/action-history"},
+          {"type": "outbound", "description": "Database access via ActionHistoryRepo"}
+        ],
+        "primary_technology_signals": ["Spring Data JPA", "MySQL"]
+      },
+      {
+        "module_id": "mod_email_notifications",
+        "name": "Email Notifications Module",
+        "description": "Sends automated email notifications to users during onboarding workflow transitions (pending approval, approved, rejected). Uses FreeMarker templates for email content. Integrates with Gmail SMTP for email delivery.",
+        "mapped_artifacts": [
+          {"artifact": "domain_model.json", "section_or_id": "bounded_contexts[0] (User Management) - Email Notifications interface", "confidence": "high"},
+          {"artifact": "integration_catalog.json", "section_or_id": "touchpoint_enrichments (Gmail SMTP)", "confidence": "high"},
+          {"artifact": "business_process_model.json", "section_or_id": "proc_user_registration (step: Send Pending Approval Email), proc_admin_onboarding_approval (step: Send Email Notification)", "confidence": "high"}
+        ],
+        "interfaces_summary": [
+          {"type": "inbound", "description": "Service layer calls from UserService, AdminService"},
+          {"type": "outbound", "description": "SMTP integration with Gmail (smtp.gmail.com:465)"}
+        ],
+        "primary_technology_signals": ["Spring Mail", "FreeMarker", "SMTP/SSL"]
+      },
+      {
+        "module_id": "mod_external_integration",
+        "name": "External Integration Module",
+        "description": "Integrates with external OneView API to fetch project performance metrics and RAG (Red-Amber-Green) status data. Provides a single endpoint for performance data retrieval. Handles OneView authentication and token management.",
+        "mapped_artifacts": [
+          {"artifact": "domain_model.json", "section_or_id": "bounded_contexts[3] (External Integration)", "confidence": "high"},
+          {"artifact": "integration_catalog.json", "section_or_id": "touchpoint_enrichments (OneView API)", "confidence": "high"},
+          {"artifact": "business_process_model.json", "section_or_id": "application_purpose_summary.primary_capabilities (External Performance Data Integration)", "confidence": "high"}
+        ],
+        "interfaces_summary": [
+          {"type": "inbound", "description": "REST API endpoint: GET /performance"},
+          {"type": "outbound", "description": "HTTPS REST integration with OneView API (https://cdoneview.avateam.io)"}
+        ],
+        "primary_technology_signals": ["RestTemplate", "HTTPS/REST"]
+      },
+      {
+        "module_id": "mod_infrastructure_observability",
+        "name": "Infrastructure & Observability Module",
+        "description": "Provides health check endpoint, Prometheus metrics exposure via Spring Actuator, and service discovery registration with Netflix Eureka. Supports monitoring, alerting, and service mesh integration.",
+        "mapped_artifacts": [
+          {"artifact": "integration_catalog.json", "section_or_id": "touchpoint_enrichments (Prometheus, Netflix Eureka)", "confidence": "high"},
+          {"artifact": "repository_summary.json", "section_or_id": "entry_points (Healthcheck), configuration (actuator_endpoints)", "confidence": "high"}
+        ],
+        "interfaces_summary": [
+          {"type": "inbound", "description": "REST API endpoints: GET /healthcheck, GET /actuator/health, GET /actuator/prometheus, GET /actuator/metrics"},
+          {"type": "outbound", "description": "Service registration with Netflix Eureka (http://k8s-coveeurekaingress-099090752f-315466093.ap-south-1.elb.amazonaws.com/eureka)"}
+        ],
+        "primary_technology_signals": ["Spring Actuator", "Micrometer", "Prometheus", "Netflix Eureka"]
+      }
+    ]
+  },
+  "requirement_themes": {
+    "themes": [
+      {
+        "theme_id": "theme_security_compliance",
+        "name": "Security & Compliance",
+        "description": "Ensure secure authentication, authorization, and audit logging to meet security and compliance requirements. Address critical security gaps identified in reverse engineering.",
+        "business_objectives": [
+          "Protect user credentials and authentication tokens from unauthorized access",
+          "Enforce role-based access control to prevent privilege escalation",
+          "Maintain comprehensive audit trail for compliance and incident response",
+          "Mitigate security vulnerabilities (hardcoded credentials, missing SSL/TLS, no rate limiting)"
+        ],
+        "related_module_ids": ["mod_authentication_authorization", "mod_user_management", "mod_audit_compliance"],
+        "source_refs": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary, security_smells, data_handling_recommendations"},
+          {"artifact": "architecture_summary.json", "pointer": "operational_and_risk.residual_risks"}
+        ]
+      },
+      {
+        "theme_id": "theme_user_onboarding",
+        "name": "User Onboarding & Lifecycle Management",
+        "description": "Provide controlled user registration and onboarding workflow with admin approval, email notifications, and account lifecycle management (activation, deactivation, role changes).",
+        "business_objectives": [
+          "Enable self-service user registration with admin oversight",
+          "Ensure users are informed at each onboarding stage via email notifications",
+          "Allow administrators to manage user accounts and roles efficiently",
+          "Maintain audit trail for all user lifecycle events"
+        ],
+        "related_module_ids": ["mod_user_management", "mod_email_notifications", "mod_audit_compliance"],
+        "source_refs": [
+          {"artifact": "business_process_model.json", "pointer": "proc_user_registration, proc_admin_onboarding_approval, proc_admin_account_management, proc_admin_role_management"},
+          {"artifact": "domain_model.json", "pointer": "bounded_contexts[0] (User Management)"}
+        ]
+      },
+      {
+        "theme_id": "theme_authentication_session",
+        "name": "Authentication & Session Management",
+        "description": "Implement stateless JWT-based authentication with token lifecycle management (generation, validation, refresh, revocation) to support secure and scalable user sessions.",
+        "business_objectives": [
+          "Provide seamless authentication experience with short-lived access tokens and long-lived refresh tokens",
+          "Enable token revocation for logout and security incident response",
+          "Support horizontal scaling with stateless authentication",
+          "Minimize session hijacking risk with token expiration and revocation"
+        ],
+        "related_module_ids": ["mod_authentication_authorization"],
+        "source_refs": [
+          {"artifact": "business_process_model.json", "pointer": "proc_user_login, proc_token_refresh"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication with Access and Refresh Tokens)"}
+        ]
+      },
+      {
+        "theme_id": "theme_external_integration",
+        "name": "External Data Integration",
+        "description": "Integrate with external OneView API to provide project performance and RAG status data to authorized users.",
+        "business_objectives": [
+          "Enable users to access project performance metrics from OneView within COVE platform",
+          "Ensure secure and reliable integration with external API",
+          "Handle authentication and error scenarios gracefully"
+        ],
+        "related_module_ids": ["mod_external_integration"],
+        "source_refs": [
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments (OneView API)"},
+          {"artifact": "business_process_model.json", "pointer": "application_purpose_summary.primary_capabilities (External Performance Data Integration)"}
+        ]
+      },
+      {
+        "theme_id": "theme_observability_operations",
+        "name": "Observability & Operational Excellence",
+        "description": "Provide comprehensive monitoring, health checks, and service discovery to ensure system reliability, performance, and operational visibility.",
+        "business_objectives": [
+          "Enable proactive monitoring and alerting via Prometheus metrics",
+          "Support automated health checks for deployment and orchestration",
+          "Facilitate service discovery and load balancing in microservices ecosystem",
+          "Ensure operational visibility for incident response and troubleshooting"
+        ],
+        "related_module_ids": ["mod_infrastructure_observability"],
+        "source_refs": [
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments (Prometheus, Netflix Eureka)"},
+          {"artifact": "architecture_summary.json", "pointer": "architectural_drivers (Observability and Monitoring)"}
+        ]
+      }
+    ]
+  },
+  "requirements": {
+    "items": [
+      {
+        "req_id": "HLR-001",
+        "title": "User Registration with Email Validation",
+        "description": "The system shall allow new users to register by providing email, password, name, company, and optional profile details. Email must be unique. Password must be hashed with BCrypt before storage. Registration creates a user record with pending_approval status and triggers a pending approval email notification.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_user_management", "mod_email_notifications"],
+        "theme_ids": ["theme_user_onboarding"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_user_registration"},
+          {"artifact": "domain_model.json", "pointer": "business_entities[0] (User)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "sensitive_data_identification (Authentication Credentials - Passwords)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "User can submit registration form with required fields (email, password, firstname, lastname, company)",
+          "System validates email uniqueness and rejects duplicate registrations",
+          "Password is hashed with BCrypt before storage; plain text password is never stored",
+          "User record is created with onboardingStatus=pending_approval and isActive=false",
+          "Pending approval email is sent to user email address"
+        ],
+        "forward_work_notes": "Elaborate validation rules for email format, password strength, and required fields. Define error messages for duplicate email and validation failures. Consider adding CAPTCHA for bot prevention."
+      },
+      {
+        "req_id": "HLR-002",
+        "title": "Admin Onboarding Approval Workflow",
+        "description": "The system shall allow administrators to review pending user registrations and update onboarding status to approved or rejected. Approved users have accounts activated (isActive=true) and receive approval email. Rejected users remain inactive and receive rejection email with admin comments. All actions are logged in audit trail.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_user_management", "mod_email_notifications", "mod_audit_compliance"],
+        "theme_ids": ["theme_user_onboarding"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_admin_onboarding_approval"},
+          {"artifact": "domain_model.json", "pointer": "business_entities[0] (User), business_entities[3] (ActionHistory)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (Onboarding Workflow with Admin Approval)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Admin can view list of pending user registrations with pagination and filtering",
+          "Admin can update onboarding status to approved, rejected, or pending_approval with optional comments",
+          "Approved users have isActive set to true and receive approval email",
+          "Rejected users remain inactive (isActive=false) and receive rejection email with admin comments",
+          "All onboarding status changes are logged in action_history table with admin attribution and timestamp"
+        ],
+        "forward_work_notes": "Define admin UI/UX for reviewing pending registrations. Specify email template content for approval and rejection notifications. Consider bulk approval/rejection for efficiency."
+      },
+      {
+        "req_id": "HLR-003",
+        "title": "JWT-Based User Authentication",
+        "description": "The system shall authenticate users via email and password credentials. Successful authentication generates a short-lived access token (30 min) and a long-lived refresh token (24 hours). Tokens are signed with HS256 and stored in database with expiration and revocation flags. Old tokens are revoked on login. Authentication fails if user is not approved, account is deactivated, or credentials are invalid.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization"],
+        "theme_ids": ["theme_authentication_session"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_user_login"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication with Access and Refresh Tokens)"},
+          {"artifact": "data_model.json", "pointer": "logical_models (AccessToken, RefreshToken)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "User can submit login request with email and password",
+          "System validates credentials against stored BCrypt hash",
+          "System checks user onboarding status (must be approved) and account activation (must be active)",
+          "Successful login generates new access token (30 min validity) and refresh token (24 hours validity)",
+          "Old access and refresh tokens are revoked (revoked=true) on login",
+          "Login fails with appropriate error message if user not found, not approved, deactivated, or invalid password"
+        ],
+        "forward_work_notes": "Elaborate error messages for different failure scenarios. Define token payload structure (claims). Consider adding login attempt tracking for security monitoring."
+      },
+      {
+        "req_id": "HLR-004",
+        "title": "Token Refresh Workflow",
+        "description": "The system shall allow users to obtain a new access token using a valid refresh token without re-authenticating. Refresh token must be validated for signature, expiration, and revocation status. Successful refresh generates a new access token with 30-minute validity.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization"],
+        "theme_ids": ["theme_authentication_session"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_token_refresh"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication with Access and Refresh Tokens)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "User can submit refresh token to obtain new access token",
+          "System validates refresh token signature, expiration, and revocation status",
+          "Valid refresh token generates new access token with 30-minute validity",
+          "Invalid, expired, or revoked refresh token returns error; user must re-authenticate"
+        ],
+        "forward_work_notes": "Define error messages for invalid refresh token scenarios. Consider refresh token rotation (issue new refresh token on each refresh) for enhanced security."
+      },
+      {
+        "req_id": "HLR-005",
+        "title": "Token Revocation for Logout",
+        "description": "The system shall allow users to revoke their access tokens and refresh tokens to log out. Revoked tokens are marked with revoked=true in database and cannot be used for authentication.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization"],
+        "theme_ids": ["theme_authentication_session"],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "entry_points (AuthRestController: /revoke-access-token, /revoke-refresh-token)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication with Access and Refresh Tokens)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "User can submit access token or refresh token to revoke",
+          "System marks token as revoked (revoked=true) in database",
+          "Revoked tokens cannot be used for authentication or token refresh",
+          "Revocation is idempotent (revoking already revoked token succeeds)"
+        ],
+        "forward_work_notes": "Define logout flow (revoke both access and refresh tokens). Consider global logout (revoke all tokens for user) for security incident response."
+      },
+      {
+        "req_id": "HLR-006",
+        "title": "Role-Based Access Control (RBAC)",
+        "description": "The system shall enforce role-based access control with CUSTOMER and ADMIN roles. Admin endpoints (/api/v1/admin/**) require ADMIN role. JWT token filter validates role claims before allowing access. Unauthorized access attempts return 403 Forbidden.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (Role-Based Access Control)"},
+          {"artifact": "repository_summary.json", "pointer": "security_configuration (protected_endpoints, public_endpoints)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Admin endpoints (/api/v1/admin/**) require ADMIN role in JWT token",
+          "Public endpoints (login, register, health check, etc.) do not require authentication",
+          "JWT token filter validates role claims before allowing access to protected endpoints",
+          "Unauthorized access attempts (missing token, invalid role) return 403 Forbidden with error message"
+        ],
+        "forward_work_notes": "Define granular permissions within ADMIN role if needed (e.g., read-only admin). Consider adding more roles (e.g., MANAGER) for future requirements."
+      },
+      {
+        "req_id": "HLR-007",
+        "title": "Admin Account Activation and Deactivation",
+        "description": "The system shall allow administrators to activate or deactivate user accounts. Deactivated accounts cannot authenticate. Account status changes are logged in audit trail. No email notification is sent for account status changes.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_user_management", "mod_audit_compliance"],
+        "theme_ids": ["theme_user_onboarding"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_admin_account_management"},
+          {"artifact": "domain_model.json", "pointer": "business_entities[0] (User: isActive field)"},
+          {"artifact": "data_model.json", "pointer": "logical_models (ActionHistory)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Admin can update user account status to activated (isActive=true) or deactivated (isActive=false)",
+          "Deactivated users cannot authenticate (login fails with error message)",
+          "Account status changes are logged in action_history table with admin attribution and timestamp",
+          "No email notification is sent to user on account status change"
+        ],
+        "forward_work_notes": "Consider adding email notification for account deactivation to inform users. Define admin UI/UX for account management."
+      },
+      {
+        "req_id": "HLR-008",
+        "title": "Admin Role Management",
+        "description": "The system shall allow administrators to change user roles (CUSTOMER or ADMIN). Role changes are logged in audit trail. No email notification is sent for role changes.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_user_management", "mod_audit_compliance"],
+        "theme_ids": ["theme_user_onboarding"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_admin_role_management"},
+          {"artifact": "domain_model.json", "pointer": "business_entities[0] (User: role field)"},
+          {"artifact": "data_model.json", "pointer": "logical_models (ActionHistory)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Admin can update user role to CUSTOMER or ADMIN",
+          "Role changes take effect immediately (user's next token refresh reflects new role)",
+          "Role changes are logged in action_history table with admin attribution and timestamp",
+          "No email notification is sent to user on role change"
+        ],
+        "forward_work_notes": "Consider adding email notification for role changes to inform users. Define role change validation rules (e.g., prevent self-demotion)."
+      },
+      {
+        "req_id": "HLR-009",
+        "title": "Comprehensive Audit Logging for Admin Actions",
+        "description": "The system shall record all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) in an audit log with timestamps, admin attribution, user details, action type, and optional comments. Audit logs are retrievable via paginated API with filtering by date range, action type, and user email.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_audit_compliance"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_admin_onboarding_approval (step: Log Action in Audit Trail), proc_admin_account_management (step: Log Action in Audit Trail), proc_admin_role_management (step: Log Action in Audit Trail)"},
+          {"artifact": "data_model.json", "pointer": "logical_models (ActionHistory)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "sensitive_data_identification (Audit and Compliance Data)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "All admin actions (onboarding status, account status, role changes) are logged in action_history table",
+          "Audit log entries include: admin email, user email, action type, action value, admin comments, timestamp",
+          "Audit logs are retrievable via GET /api/v1/admin/action-history with pagination and filtering",
+          "Filtering supports date range, action type, and user email"
+        ],
+        "forward_work_notes": "Define audit log retention policy. Consider adding audit log export functionality for compliance reporting."
+      },
+      {
+        "req_id": "HLR-010",
+        "title": "Email Notifications for Onboarding Workflow",
+        "description": "The system shall send automated email notifications to users at each onboarding stage: pending approval (after registration), approved (after admin approval), rejected (after admin rejection with comments). Emails use FreeMarker templates and are sent via Gmail SMTP.",
+        "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_email_notifications"],
+        "theme_ids": ["theme_user_onboarding"],
+        "traceability": [
+          {"artifact": "business_process_model.json", "pointer": "proc_user_registration (step: Send Pending Approval Email), proc_admin_onboarding_approval (step: Send Email Notification)"},
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments (Gmail SMTP)"},
+          {"artifact": "repository_summary.json", "pointer": "service_layer (EmailService)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Pending approval email is sent to user after registration",
+          "Approval email is sent to user after admin approves registration",
+          "Rejection email with admin comments is sent to user after admin rejects registration",
+          "Emails use FreeMarker templates (email-template-pending-approval.ftl, email-template-approved.ftl, email-template-rejected.ftl)",
+          "Email failures are logged but do not roll back user registration or status updates"
+        ],
+        "forward_work_notes": "Define email template content and branding. Consider adding email delivery status tracking. Implement retry logic for transient email failures."
+      },
+      {
+        "req_id": "HLR-011",
+        "title": "OneView API Integration for Performance Data",
+        "description": "The system shall integrate with external OneView API to fetch project performance metrics and RAG (Red-Amber-Green) status data. Integration includes OneView authentication (username/password) and token-based API calls. Performance data is retrieved on-demand via GET /performance endpoint.",
+        "type": "integration",
+        "priority": "should",
+        "module_ids": ["mod_external_integration"],
+        "theme_ids": ["theme_external_integration"],
+        "traceability": [
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments (OneView API)"},
+          {"artifact": "business_process_model.json", "pointer": "application_purpose_summary.primary_capabilities (External Performance Data Integration)"},
+          {"artifact": "repository_summary.json", "pointer": "entry_points (PerformaceController)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "System authenticates with OneView API using username/password to obtain access token",
+          "System fetches performance data via GET /ava/oneview/internal/api/dashboard/rag/list with query params",
+          "Performance data is returned to user via GET /performance endpoint",
+          "System handles OneView API failures gracefully (fallback to previous day's data if current day returns empty)"
+        ],
+        "forward_work_notes": "Externalize OneView credentials to environment variables or secrets manager (critical security fix). Define error handling and retry logic for OneView API failures. Consider caching performance data to reduce API calls."
+      },
+      {
+        "req_id": "HLR-012",
+        "title": "Health Check and Actuator Endpoints",
+        "description": "The system shall provide health check endpoint (/healthcheck) and Spring Actuator endpoints (/actuator/health, /actuator/info, /actuator/prometheus, /actuator/metrics) for monitoring, alerting, and operational visibility.",
+        "type": "non_functional",
+        "priority": "must",
+        "module_ids": ["mod_infrastructure_observability"],
+        "theme_ids": ["theme_observability_operations"],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "entry_points (Healthcheck), configuration (actuator_endpoints)"},
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments (Prometheus)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "GET /healthcheck returns 200 OK with application health status",
+          "GET /actuator/health returns Spring Boot health indicators",
+          "GET /actuator/prometheus returns Prometheus-formatted metrics",
+          "GET /actuator/metrics returns available metrics list",
+          "Prometheus scrape endpoint is accessible on port 8090"
+        ],
+        "forward_work_notes": "Define custom health indicators for database, external API, and email service. Configure Prometheus scrape interval and retention."
+      },
+      {
+        "req_id": "HLR-013",
+        "title": "Service Discovery with Netflix Eureka",
+        "description": "The system shall register with Netflix Eureka service registry on startup and send periodic heartbeats. Service discovery enables dynamic service registration and load balancing in microservices ecosystem.",
+        "type": "non_functional",
+        "priority": "should",
+        "module_ids": ["mod_infrastructure_observability"],
+        "theme_ids": ["theme_observability_operations"],
+        "traceability": [
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments (Netflix Eureka)"},
+          {"artifact": "repository_summary.json", "pointer": "configuration (eureka_service_url)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "System registers with Eureka server on startup",
+          "System sends periodic heartbeats to Eureka server",
+          "Service metadata (instance ID, hostname, port) is registered in Eureka",
+          "Eureka client handles failover and retry on connection failures"
+        ],
+        "forward_work_notes": "Verify Eureka server availability and configuration. Consider alternative service discovery mechanisms (e.g., Kubernetes service discovery) if Eureka is deprecated."
+      },
+      {
+        "req_id": "HLR-014",
+        "title": "Externalize Credentials to Secrets Manager",
+        "description": "The system shall externalize all credentials (database, SMTP, JWT secrets, OneView API) from source code and configuration files to environment variables or AWS Secrets Manager. This addresses critical security vulnerability of hardcoded credentials.",
+        "type": "security",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization", "mod_email_notifications", "mod_external_integration"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (Hardcoded Credentials, Credentials in Configuration Files), data_handling_recommendations"},
+          {"artifact": "architecture_summary.json", "pointer": "operational_and_risk.residual_risks (Hardcoded Credentials in Source Code and Configuration Files)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "OneView API credentials are removed from OneViewServiceImpl.java and stored in environment variables or AWS Secrets Manager",
+          "Database credentials are removed from application-dev.properties and stored in environment variables or AWS Secrets Manager",
+          "SMTP credentials are removed from application-dev.properties and stored in environment variables or AWS Secrets Manager",
+          "JWT secret is removed from application-dev.properties and stored in environment variables or AWS Secrets Manager",
+          "Application reads credentials from environment variables or AWS Secrets Manager at runtime"
+        ],
+        "forward_work_notes": "Implement AWS Secrets Manager integration or use Kubernetes secrets. Update deployment pipeline to inject secrets at runtime. Rotate credentials after externalization."
+      },
+      {
+        "req_id": "HLR-015",
+        "title": "Enable SSL/TLS for Database Connection",
+        "description": "The system shall enable SSL/TLS encryption for MySQL database connections to protect sensitive data in transit. This addresses high-severity security gap of missing SSL/TLS for database.",
+        "type": "security",
+        "priority": "must",
+        "module_ids": ["mod_user_management", "mod_authentication_authorization", "mod_audit_compliance"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (Missing SSL/TLS for Database Connection), data_handling_recommendations"},
+          {"artifact": "architecture_summary.json", "pointer": "operational_and_risk.residual_risks (Missing SSL/TLS for Database Connection)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "JDBC URL includes SSL parameters (e.g., useSSL=true, requireSSL=true)",
+          "Database connection uses SSL/TLS encryption",
+          "Application verifies database server certificate"
+        ],
+        "forward_work_notes": "Update JDBC URL in application properties. Verify AWS RDS MySQL SSL/TLS configuration. Test database connection with SSL/TLS enabled."
+      },
+      {
+        "req_id": "HLR-016",
+        "title": "Implement Rate Limiting for Authentication Endpoints",
+        "description": "The system shall implement rate limiting on authentication endpoints (/login, /register) to prevent brute force attacks, credential stuffing, and denial of service. This addresses high-severity security gap of no rate limiting.",
+        "type": "security",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization", "mod_user_management"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (No Rate Limiting), data_handling_recommendations"},
+          {"artifact": "architecture_summary.json", "pointer": "operational_and_risk.residual_risks (No Rate Limiting or Account Lockout)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Login endpoint (/login) is rate-limited to N requests per IP address per time window (e.g., 5 requests per minute)",
+          "Registration endpoint (/register) is rate-limited to N requests per IP address per time window (e.g., 3 requests per hour)",
+          "Exceeded rate limit returns 429 Too Many Requests with retry-after header",
+          "Rate limiting is configurable via application properties"
+        ],
+        "forward_work_notes": "Implement rate limiting using Spring framework (e.g., Bucket4j) or API gateway. Define rate limit thresholds based on expected traffic patterns. Consider distributed rate limiting for multi-instance deployments."
+      },
+      {
+        "req_id": "HLR-017",
+        "title": "Implement Account Lockout Mechanism",
+        "description": "The system shall implement account lockout mechanism after N failed login attempts to prevent brute force attacks. Locked accounts are automatically unlocked after a time period or manually unlocked by admin. This addresses high-severity security gap of no account lockout.",
+        "type": "security",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (No Account Lockout), data_handling_recommendations"},
+          {"artifact": "architecture_summary.json", "pointer": "operational_and_risk.residual_risks (No Rate Limiting or Account Lockout)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "System tracks failed login attempts per user account",
+          "Account is locked after N failed login attempts (e.g., 5 attempts)",
+          "Locked account cannot authenticate until unlocked",
+          "Account is automatically unlocked after time period (e.g., 30 minutes) or manually unlocked by admin",
+          "Failed login attempts and account lockout events are logged in audit trail"
+        ],
+        "forward_work_notes": "Define lockout threshold and duration. Implement failed login attempt tracking in database. Add admin endpoint for manual account unlock. Consider CAPTCHA after N failed attempts before lockout."
+      },
+      {
+        "req_id": "HLR-018",
+        "title": "Comprehensive Audit Logging for Authentication Events",
+        "description": "The system shall log all authentication events (successful logins, failed login attempts, token refresh, token revocation) with timestamps, user email, IP address, and user agent for security monitoring and incident response. This addresses medium-severity security gap of no audit logging for authentication events.",
+        "type": "security",
+        "priority": "should",
+        "module_ids": ["mod_authentication_authorization", "mod_audit_compliance"],
+        "theme_ids": ["theme_security_compliance"],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (No Audit Logging for Authentication Events), data_handling_recommendations"},
+          {"artifact": "architecture_summary.json", "pointer": "operational_and_risk.residual_risks (Minimal Test Coverage)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Successful login events are logged with user email, timestamp, IP address, user agent",
+          "Failed login attempts are logged with user email (if provided), timestamp, IP address, user agent, failure reason",
+          "Token refresh events are logged with user email, timestamp",
+          "Token revocation events are logged with user email, timestamp",
+          "Authentication logs are retrievable via admin API with pagination and filtering"
+        ],
+        "forward_work_notes": "Define authentication log schema and storage (separate table or extend action_history). Implement log retrieval API. Consider integration with SIEM for security monitoring."
+      },
+      {
+        "req_id": "HLR-019",
+        "title": "Reactive Programming with Spring WebFlux",
+        "description": "The system shall use Spring WebFlux for reactive, non-blocking I/O to support high concurrency and scalability. Reactive programming is applied to REST controllers, service layer, and database access where applicable.",
+        "type": "non_functional",
+        "priority": "should",
+        "module_ids": ["mod_authentication_authorization", "mod_user_management", "mod_external_integration"],
+        "theme_ids": ["theme_observability_operations"],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "application_type (Reactive Web Service), technology_stack (reactive_stack)"},
+          {"artifact": "architecture_summary.json", "pointer": "logical_architecture.notable_patterns (Reactive Programming)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "REST controllers use Mono and Flux for reactive responses",
+          "Service layer methods return Mono or Flux where applicable",
+          "Database access uses reactive repositories (e.g., CustomerDaoImpl with Mono<UserEntity>)",
+          "External API calls (OneView) use reactive WebClient or RestTemplate with reactive support"
+        ],
+        "forward_work_notes": "Ensure all blocking operations are offloaded to separate thread pools. Verify reactive programming best practices (e.g., avoid blocking in reactive chains). Consider full reactive stack (R2DBC for database) for maximum performance."
+      },
+      {
+        "req_id": "HLR-020",
+        "title": "Kubernetes Deployment with Auto-Scaling",
+        "description": "The system shall be deployed on AWS EKS with Kubernetes deployment manifests. Deployment includes 2 replicas, resource limits (CPU, memory), health checks, and Prometheus scrape annotations. Auto-scaling is configured based on CPU/memory utilization.",
+        "type": "non_functional",
+        "priority": "must",
+        "module_ids": ["mod_infrastructure_observability"],
+        "theme_ids": ["theme_observability_operations"],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "deployment (orchestration: Kubernetes (AWS EKS)), kubernetes_configuration"},
+          {"artifact": "architecture_summary.json", "pointer": "architectural_drivers (Scalability and Resilience)"}
+        ],
+        "acceptance_criteria_high_level": [
+          "Kubernetes deployment manifest defines 2 replicas",
+          "Resource requests and limits are configured (CPU: 250m, Memory: 512Mi-1024Mi)",
+          "Liveness and readiness probes are configured for health checks",
+          "Prometheus scrape annotations are configured on deployment",
+          "Horizontal Pod Autoscaler (HPA) is configured to scale based on CPU/memory utilization"
+        ],
+        "forward_work_notes": "Define auto-scaling thresholds (e.g., scale up at 70% CPU utilization). Verify resource limits are appropriate for expected load. Test rolling updates and zero-downtime deployments."
+      }
+    ]
+  },
+  "non_functional_and_constraints": {
+    "summary": "The system must meet security, performance, scalability, and compliance requirements. Critical security gaps (hardcoded credentials, missing SSL/TLS, no rate limiting, no account lockout) must be addressed immediately. The system must support horizontal scaling with stateless authentication and reactive programming. Comprehensive audit logging is required for compliance. Observability via Prometheus metrics and health checks is mandatory for operational visibility.",
+    "items": [
+      {
+        "nfr_id": "NFR-001",
+        "category": "security",
+        "description": "All credentials (database, SMTP, JWT secrets, external API) must be externalized to environment variables or AWS Secrets Manager. No credentials in source code or configuration files.",
+        "priority": "must",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations"}]
+      },
+      {
+        "nfr_id": "NFR-002",
+        "category": "security",
+        "description": "All database connections must use SSL/TLS encryption. JDBC URL must include SSL parameters.",
+        "priority": "must",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations"}]
+      },
+      {
+        "nfr_id": "NFR-003",
+        "category": "security",
+        "description": "Authentication endpoints (/login, /register) must be rate-limited to prevent brute force attacks and denial of service.",
+        "priority": "must",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations"}]
+      },
+      {
+        "nfr_id": "NFR-004",
+        "category": "security",
+        "description": "Account lockout mechanism must be implemented after N failed login attempts to prevent brute force attacks.",
+        "priority": "must",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations"}]
+      },
+      {
+        "nfr_id": "NFR-005",
+        "category": "security",
+        "description": "All authentication events (successful logins, failed attempts, token refresh, revocation) must be logged with timestamps, user email, IP address, and user agent.",
+        "priority": "should",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations"}]
+      },
+      {
+        "nfr_id": "NFR-006",
+        "category": "performance",
+        "description": "System must support reactive, non-blocking I/O with Spring WebFlux to handle high concurrency and scalability.",
+        "priority": "should",
+        "source_refs": [{"artifact": "architecture_summary.json", "pointer": "architectural_drivers (Scalability and Resilience)"}]
+      },
+      {
+        "nfr_id": "NFR-007",
+        "category": "scalability",
+        "description": "System must support horizontal scaling with stateless JWT authentication. No server-side session state.",
+        "priority": "must",
+        "source_refs": [{"artifact": "architecture_summary.json", "pointer": "architectural_drivers (Scalability and Resilience)"}]
+      },
+      {
+        "nfr_id": "NFR-008",
+        "category": "observability",
+        "description": "System must expose Prometheus metrics via /actuator/prometheus endpoint for monitoring and alerting.",
+        "priority": "must",
+        "source_refs": [{"artifact": "architecture_summary.json", "pointer": "architectural_drivers (Observability and Monitoring)"}]
+      },
+      {
+        "nfr_id": "NFR-009",
+        "category": "observability",
+        "description": "System must provide health check endpoints (/healthcheck, /actuator/health) for deployment orchestration and monitoring.",
+        "priority": "must",
+        "source_refs": [{"artifact": "architecture_summary.json", "pointer": "architectural_drivers (Observability and Monitoring)"}]
+      },
+      {
+        "nfr_id": "NFR-010",
+        "category": "compliance",
+        "description": "All administrative actions on user accounts must be logged in audit trail with timestamps, admin attribution, and action details.",
+        "priority": "must",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "sensitive_data_identification (Audit and Compliance Data)"}]
+      },
+      {
+        "nfr_id": "NFR-011",
+        "category": "deployment",
+        "description": "System must be deployed on AWS EKS with Kubernetes deployment manifests. Deployment must include resource limits, health checks, and auto-scaling configuration.",
+        "priority": "must",
+        "source_refs": [{"artifact": "repository_summary.json", "pointer": "deployment, kubernetes_configuration"}]
+      },
+      {
+        "nfr_id": "NFR-012",
+        "category": "data_retention",
+        "description": "Data retention and deletion policies must be implemented for audit logs and user data to comply with GDPR and minimize data exposure risk.",
+        "priority": "should",
+        "source_refs": [{"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations"}]
+      }
+    ]
+  },
+  "dependencies_and_sequence_hints": {
+    "requirement_dependencies": [
+      {"from_req_id": "HLR-001", "to_req_id": "HLR-002", "relationship": "depends_on", "notes": "User registration creates pending approval record that triggers admin onboarding approval workflow"},
+      {"from_req_id": "HLR-002", "to_req_id": "HLR-003", "relationship": "depends_on", "notes": "Admin approval (with approved status) enables user to proceed with login"},
+      {"from_req_id": "HLR-003", "to_req_id": "HLR-004", "relationship": "implements_aspect_of", "notes": "Login generates refresh token that is used in token refresh workflow"},
+      {"from_req_id": "HLR-003", "to_req_id": "HLR-005", "relationship": "implements_aspect_of", "notes": "Login generates tokens that can be revoked via token revocation workflow"},
+      {"from_req_id": "HLR-006", "to_req_id": "HLR-002", "relationship": "depends_on", "notes": "Admin onboarding approval requires ADMIN role enforced by RBAC"},
+      {"from_req_id": "HLR-006", "to_req_id": "HLR-007", "relationship": "depends_on", "notes": "Admin account management requires ADMIN role enforced by RBAC"},
+      {"from_req_id": "HLR-006", "to_req_id": "HLR-008", "relationship": "depends_on", "notes": "Admin role management requires ADMIN role enforced by RBAC"},
+      {"from_req_id": "HLR-009", "to_req_id": "HLR-002", "relationship": "implements_aspect_of", "notes": "Audit logging records admin onboarding approval actions"},
+      {"from_req_id": "HLR-009", "to_req_id": "HLR-007", "relationship": "implements_aspect_of", "notes": "Audit logging records admin account management actions"},
+      {"from_req_id": "HLR-009", "to_req_id": "HLR-008", "relationship": "implements_aspect_of", "notes": "Audit logging records admin role management actions"},
+      {"from_req_id": "HLR-010", "to_req_id": "HLR-001", "relationship": "implements_aspect_of", "notes": "Email notifications are sent during user registration workflow"},
+      {"from_req_id": "HLR-010", "to_req_id": "HLR-002", "relationship": "implements_aspect_of", "notes": "Email notifications are sent during admin onboarding approval workflow"},
+      {"from_req_id": "HLR-014", "to_req_id": "HLR-003", "relationship": "depends_on", "notes": "JWT secret must be externalized before authentication can be secured"},
+      {"from_req_id": "HLR-014", "to_req_id": "HLR-010", "relationship": "depends_on", "notes": "SMTP credentials must be externalized before email notifications can be secured"},
+      {"from_req_id": "HLR-014", "to_req_id": "HLR-011", "relationship": "depends_on", "notes": "OneView API credentials must be externalized before external integration can be secured"},
+      {"from_req_id": "HLR-015", "to_req_id": "HLR-001", "relationship": "depends_on", "notes": "Database SSL/TLS must be enabled to secure user registration data in transit"},
+      {"from_req_id": "HLR-016", "to_req_id": "HLR-003", "relationship": "implements_aspect_of", "notes": "Rate limiting protects login endpoint from brute force attacks"},
+      {"from_req_id": "HLR-017", "to_req_id": "HLR-003", "relationship": "implements_aspect_of", "notes": "Account lockout prevents brute force attacks on login endpoint"}
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "read_branch": "aava/reverse-index",
+    "write_branch": "aava/reverse-index",
+    "inputs_consumed": [
+      "repository_summary.json",
+      "dependency_graph.json",
+      "domain_model.json",
+      "integration_catalog.json",
+      "data_model.json",
+      "security_privacy_assessment.json",
+      "business_process_model.json",
+      "architecture_summary.json"
+    ],
+    "missing_optional_inputs": [
+      "tech_debt_risk.json",
+      "review_resolution.json"
+    ],
+    "limits_or_unknowns": [
+      "Tech debt analysis not available; no tech_debt_risk.json artifact found. Forward engineering agents should assess technical debt independently.",
+      "Review resolution not available; no review_resolution.json artifact found. Forward engineering agents should validate requirements with stakeholders.",
+      "Password reset/forgot password functionality is out of scope (not implemented in as-is system). Forward engineering agents should consider adding this feature.",
+      "Multi-factor authentication (MFA) is out of scope (not implemented in as-is system). Forward engineering agents should consider adding MFA for enhanced security.",
+      "API documentation (Swagger/OpenAPI) is out of scope (not implemented in as-is system). Forward engineering agents should add API documentation.",
+      "Database migration tooling (Flyway/Liquibase) is out of scope (not implemented in as-is system). Forward engineering agents should add database migration tooling for schema evolution.",
+      "Caching layer (Redis) is out of scope (not implemented in as-is system). Forward engineering agents should consider adding caching for performance optimization.",
+      "Distributed tracing (Sleuth, Zipkin) is out of scope (not implemented in as-is system). Forward engineering agents should consider adding distributed tracing for observability.",
+      "Test coverage is minimal in as-is system. Forward engineering agents must implement comprehensive unit and integration tests.",
+      "Email notification failures do not roll back transactions in as-is system. Forward engineering agents should consider transactional email sending or compensating transactions.",
+      "OneView API integration details are limited; no API specification available. Forward engineering agents should obtain OneView API documentation for detailed integration design.",
+      "Client-related fields (clientId, clientName, clientOneView) in UserEntity have unclear business purpose. Forward engineering agents should clarify business requirements for these fields."
+    ]
+  }
+}
