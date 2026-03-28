@@ -1,0 +1,466 @@
+{
+  "executive_summary": {
+    "one_paragraph": "COVE User Service is a reactive Spring Boot microservice deployed on AWS EKS that provides JWT-based authentication, user registration with admin-approval workflows, and role-based access control for the COVE platform. Primary users include end-users registering for accounts (CUSTOMER role) and administrators managing user onboarding, account activation, and role assignments (ADMIN role). The system integrates with external OneView API for project performance data, uses MySQL for persistence, and sends email notifications via Gmail SMTP. The architecture follows a layered pattern with reactive programming (Spring WebFlux), stateless JWT authentication, and comprehensive audit logging for compliance.",
+    "key_characteristics": [
+      {
+        "characteristic": "Reactive microservice architecture with Spring Boot 3.2.5 and WebFlux",
+        "source_artifacts": ["repository_summary.json", "dependency_graph.json"],
+        "confidence": "high"
+      },
+      {
+        "characteristic": "JWT-based stateless authentication with short-lived access tokens (30 min) and long-lived refresh tokens (24 hours)",
+        "source_artifacts": ["security_privacy_assessment.json", "domain_model.json"],
+        "confidence": "high"
+      },
+      {
+        "characteristic": "Admin-approval onboarding workflow with email notifications at each stage (pending, approved, rejected)",
+        "source_artifacts": ["business_process_model.json", "domain_model.json"],
+        "confidence": "high"
+      },
+      {
+        "characteristic": "Role-based access control with CUSTOMER and ADMIN roles; admin endpoints protected via Spring Security",
+        "source_artifacts": ["security_privacy_assessment.json", "repository_summary.json"],
+        "confidence": "high"
+      },
+      {
+        "characteristic": "Comprehensive audit logging for all administrative actions (onboarding, account status, role changes)",
+        "source_artifacts": ["data_model.json", "business_process_model.json"],
+        "confidence": "high"
+      },
+      {
+        "characteristic": "AWS EKS deployment with automated CI/CD via AWS CodeBuild; Prometheus metrics for observability",
+        "source_artifacts": ["repository_summary.json", "integration_catalog.json"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "system_context": {
+    "purpose": "Manage user authentication, registration, and onboarding workflows for the COVE platform with role-based access control and integration with external performance data sources.",
+    "primary_users": [
+      {
+        "user_type": "End User (CUSTOMER role)",
+        "description": "Individuals registering for COVE accounts, authenticating, and accessing platform features post-approval.",
+        "source_ref": "business_process_model.json: proc_user_registration, proc_user_login"
+      },
+      {
+        "user_type": "Administrator (ADMIN role)",
+        "description": "Platform administrators who review and approve user registrations, manage account activation/deactivation, assign roles, and access audit logs.",
+        "source_ref": "business_process_model.json: proc_admin_onboarding_approval, proc_admin_account_management, proc_admin_role_management"
+      }
+    ],
+    "external_systems": [
+      {
+        "name": "OneView API",
+        "role": "External project performance and RAG status data provider",
+        "source_ref": "integration_catalog.json: OneView API touchpoint"
+      },
+      {
+        "name": "AWS RDS MySQL",
+        "role": "Primary relational database for user entities, tokens, and audit logs",
+        "source_ref": "data_model.json: users, access_token, refresh_token, action_history tables"
+      },
+      {
+        "name": "Gmail SMTP",
+        "role": "Email notification delivery for onboarding workflow events",
+        "source_ref": "integration_catalog.json: Gmail SMTP touchpoint"
+      },
+      {
+        "name": "Netflix Eureka",
+        "role": "Service discovery and registration for microservices ecosystem",
+        "source_ref": "integration_catalog.json: Netflix Eureka touchpoint"
+      },
+      {
+        "name": "Prometheus",
+        "role": "Metrics collection and monitoring via scrape endpoint",
+        "source_ref": "integration_catalog.json: Prometheus touchpoint"
+      },
+      {
+        "name": "AWS ECR",
+        "role": "Docker image registry for container storage",
+        "source_ref": "integration_catalog.json: AWS ECR touchpoint"
+      },
+      {
+        "name": "AWS EKS",
+        "role": "Kubernetes orchestration platform for container deployment",
+        "source_ref": "integration_catalog.json: AWS EKS touchpoint"
+      }
+    ],
+    "context_boundaries": [
+      {
+        "in_scope": "User registration, authentication, onboarding approval, account management, role assignment, audit logging, JWT token lifecycle management, email notifications, external performance data retrieval",
+        "out_of_scope": "Password reset/forgot password functionality, multi-factor authentication (MFA), API documentation (Swagger/OpenAPI), database migration tooling (Flyway/Liquibase), caching layer (Redis), rate limiting (application-level)",
+        "source_ref": "business_process_model.json: out_of_scope_signals; repository_summary.json: potential_improvements"
+      }
+    ]
+  },
+  "architectural_drivers": {
+    "drivers": [
+      {
+        "driver": "Security and Compliance",
+        "rationale": "JWT-based authentication with token revocation, BCrypt password hashing, role-based access control, and comprehensive audit logging are implemented to meet security and compliance requirements. However, critical security gaps exist (hardcoded credentials, missing SSL/TLS for database, no rate limiting).",
+        "evidence": ["security_privacy_assessment.json: authorization_model_summary, security_smells", "business_process_model.json: proc_admin_onboarding_approval (audit trail)"],
+        "confidence": "high"
+      },
+      {
+        "driver": "Scalability and Resilience",
+        "rationale": "Reactive programming with Spring WebFlux, stateless JWT authentication, and Kubernetes deployment with 2 replicas and resource limits support horizontal scaling. Service discovery via Eureka enables dynamic service registration.",
+        "evidence": ["repository_summary.json: kubernetes_configuration (replicas, resources)", "dependency_graph.json: spring-boot-starter-webflux", "integration_catalog.json: Netflix Eureka"],
+        "confidence": "high"
+      },
+      {
+        "driver": "Observability and Monitoring",
+        "rationale": "Prometheus metrics exposed via Spring Actuator enable monitoring of application health, JVM metrics, and custom metrics. Kubernetes deployment includes Prometheus scrape annotations.",
+        "evidence": ["integration_catalog.json: Prometheus touchpoint", "repository_summary.json: actuator_endpoints"],
+        "confidence": "high"
+      },
+      {
+        "driver": "Operational Efficiency",
+        "rationale": "Automated CI/CD pipeline via AWS CodeBuild with Docker image build, ECR push, and EKS deployment reduces manual deployment effort. Kubernetes rollout restart ensures zero-downtime updates.",
+        "evidence": ["repository_summary.json: ci_cd_pipeline", "integration_catalog.json: AWS ECR, AWS EKS touchpoints"],
+        "confidence": "high"
+      },
+      {
+        "driver": "User Experience",
+        "rationale": "Email notifications at each onboarding stage (pending, approved, rejected) keep users informed. Admin approval workflow ensures controlled access to the platform.",
+        "evidence": ["business_process_model.json: proc_user_registration, proc_admin_onboarding_approval", "integration_catalog.json: Gmail SMTP touchpoint"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "logical_architecture": {
+    "containers_or_modules": [
+      {
+        "name": "cove-user-service",
+        "responsibility": "Core Spring Boot application providing REST API endpoints for user management, authentication, and admin functions. Orchestrates service layer, repository layer, and external integrations.",
+        "mapped_from": "repository_summary.json: modules[0] (cove-user-service)",
+        "interfaces": [
+          "REST API: /login, /register, /check-access-token, /refresh-token, /revoke-access-token, /revoke-refresh-token, /api/v1/admin/**, /performance, /healthcheck",
+          "Actuator endpoints: /actuator/health, /actuator/info, /actuator/prometheus, /actuator/metrics"
+        ],
+        "evidence": ["repository_summary.json: entry_points", "dependency_graph.json: nodes (controllers)"]
+      },
+      {
+        "name": "Controller Layer",
+        "responsibility": "REST controllers handling HTTP requests and responses. Includes AuthRestController, AdminController, PerformaceController, Healthcheck.",
+        "mapped_from": "dependency_graph.json: nodes (type=controller)",
+        "interfaces": ["HTTP REST endpoints"],
+        "evidence": ["dependency_graph.json: service_module_graph.nodes (AuthRestController, AdminController, PerformaceController, Healthcheck)"]
+      },
+      {
+        "name": "Service Layer",
+        "responsibility": "Business logic implementation for user management, authentication, admin functions, email notifications, action history, and OneView integration. Includes UserService, AdminService, AuthService, EmailService, ActionHistoryService, OneViewService.",
+        "mapped_from": "dependency_graph.json: nodes (type=service, service_impl)",
+        "interfaces": ["Service interfaces and implementations"],
+        "evidence": ["dependency_graph.json: service_module_graph.nodes (UserService, AdminService, AuthService, EmailService, ActionHistoryService, OneViewService)", "domain_model.json: bounded_contexts"]
+      },
+      {
+        "name": "Repository Layer",
+        "responsibility": "Data access layer using Spring Data JPA repositories for CRUD operations on user entities, tokens, and audit logs. Includes UserRepository, AccessTokenRepo, RefreshTokenRepo, ActionHistoryRepo, CustomerDao.",
+        "mapped_from": "dependency_graph.json: nodes (type=repository, repository_impl)",
+        "interfaces": ["JpaRepository interfaces with custom queries"],
+        "evidence": ["dependency_graph.json: service_module_graph.nodes (UserRepository, AccessTokenRepo, RefreshTokenRepo, ActionHistoryRepo, CustomerDao)", "data_model.json: ownership_mapping"]
+      },
+      {
+        "name": "Security Components",
+        "responsibility": "JWT token generation, validation, and authentication filter. Includes JwtAccessTokenUtil, JwtRefreshTokenUtil, JwtTokenAuthenticationFilter, CustomUserDetailsService.",
+        "mapped_from": "repository_summary.json: security_configuration",
+        "interfaces": ["Spring Security filter chain, JWT utilities"],
+        "evidence": ["security_privacy_assessment.json: authorization_model_summary", "repository_summary.json: security_configuration"]
+      },
+      {
+        "name": "Configuration Components",
+        "responsibility": "Spring Boot configuration classes for security, CORS, application settings, and bean definitions. Includes SecurityConfig, CorsGlobalConfiguration, AppConfig.",
+        "mapped_from": "repository_summary.json: configuration",
+        "interfaces": ["Spring configuration beans"],
+        "evidence": ["repository_summary.json: configuration"]
+      },
+      {
+        "name": "Exception Handling",
+        "responsibility": "Global exception handlers for REST and reactive endpoints. Includes GlobalExceptionHandler, CustomControllerAdvice.",
+        "mapped_from": "repository_summary.json: exception_handling",
+        "interfaces": ["@ControllerAdvice, @ExceptionHandler"],
+        "evidence": ["repository_summary.json: exception_handling"]
+      }
+    ],
+    "notable_patterns": [
+      {
+        "pattern": "Layered Architecture",
+        "description": "Clear separation of concerns with Controller -> Service -> Repository layers. Each layer has distinct responsibilities and dependencies flow downward.",
+        "evidence": ["dependency_graph.json: service_module_graph.edges (controller -> service, service -> repository)", "repository_summary.json: architectural_patterns"]
+      },
+      {
+        "pattern": "Reactive Programming",
+        "description": "Spring WebFlux with Mono and Flux for non-blocking I/O. Reactive custom DAO (CustomerDaoImpl) for database queries.",
+        "evidence": ["repository_summary.json: application_type (Reactive Web Service)", "dependency_graph.json: spring-boot-starter-webflux"]
+      },
+      {
+        "pattern": "Repository Pattern",
+        "description": "Spring Data JPA repositories abstract database access with custom query methods and pagination support.",
+        "evidence": ["repository_summary.json: repository_layer", "data_model.json: logical_models"]
+      },
+      {
+        "pattern": "DTO Pattern",
+        "description": "Data Transfer Objects (AuthUser, AuthenticationRequest, Token, SuccessResponse, etc.) separate API contracts from domain entities.",
+        "evidence": ["repository_summary.json: architectural_patterns"]
+      },
+      {
+        "pattern": "Filter Chain Pattern",
+        "description": "JWT authentication filter (JwtTokenAuthenticationFilter) intercepts requests to validate tokens before reaching controllers.",
+        "evidence": ["security_privacy_assessment.json: authorization_model_summary", "repository_summary.json: security_configuration"]
+      }
+    ]
+  },
+  "integration_architecture": {
+    "summary": "The system integrates with seven external touchpoints: OneView API (outbound REST for performance data), AWS RDS MySQL (outbound JDBC for persistence), Gmail SMTP (outbound SMTP for email notifications), Netflix Eureka (bidirectional REST for service discovery), Prometheus (inbound HTTP scrape for metrics), AWS ECR (outbound Docker Registry API for image storage), and AWS EKS (bidirectional Kubernetes API for orchestration). Authentication patterns vary: custom token for OneView, basic auth for MySQL and Gmail, unknown for infrastructure services. No explicit retry logic at application level; relies on library defaults. Idempotency is not enforced for write operations.",
+    "touchpoint_groups": [
+      {
+        "group_name": "External Data Sources",
+        "touchpoints": ["OneView API"],
+        "protocol": "HTTPS/REST",
+        "direction": "outbound",
+        "source_ref": "integration_catalog.json: OneView API enrichment"
+      },
+      {
+        "group_name": "Persistence Layer",
+        "touchpoints": ["AWS RDS MySQL"],
+        "protocol": "JDBC/MySQL",
+        "direction": "outbound",
+        "source_ref": "integration_catalog.json: AWS RDS MySQL enrichment"
+      },
+      {
+        "group_name": "Notification Services",
+        "touchpoints": ["Gmail SMTP"],
+        "protocol": "SMTP/SSL",
+        "direction": "outbound",
+        "source_ref": "integration_catalog.json: Gmail SMTP enrichment"
+      },
+      {
+        "group_name": "Service Discovery and Monitoring",
+        "touchpoints": ["Netflix Eureka", "Prometheus"],
+        "protocol": "HTTP/REST",
+        "direction": "bidirectional (Eureka), inbound (Prometheus)",
+        "source_ref": "integration_catalog.json: Netflix Eureka, Prometheus enrichments"
+      },
+      {
+        "group_name": "Container Infrastructure",
+        "touchpoints": ["AWS ECR", "AWS EKS"],
+        "protocol": "Docker Registry API, Kubernetes API",
+        "direction": "outbound (ECR), bidirectional (EKS)",
+        "source_ref": "integration_catalog.json: AWS ECR, AWS EKS enrichments"
+      }
+    ]
+  },
+  "data_architecture": {
+    "summary": "The system uses MySQL 8.0.33 on AWS RDS as the primary relational database with four tables: users (user entities with onboarding status and account activation), access_token (short-lived JWT tokens), refresh_token (long-lived JWT tokens), and action_history (audit log for admin actions). Data ownership is clear: User Management Context owns users table, Authentication & Authorization Context owns token tables, Audit & Compliance Context owns action_history table. Relationships are enforced via JPA annotations (one-to-many from users to tokens, logical association from users to action_history via email). No database migration tooling detected; schema evolution relies on JPA auto-DDL. No caching layer or data retention policies implemented.",
+    "persistence_and_flow_notes": [
+      {
+        "note": "User registration creates a UserEntity with pending_approval status and isActive=false. Admin approval updates onboardingStatus to approved and isActive=true.",
+        "source_ref": "business_process_model.json: proc_user_registration, proc_admin_onboarding_approval"
+      },
+      {
+        "note": "Login generates new access and refresh tokens, revokes old tokens by setting revoked=true. Tokens are stored in database with expiration flags.",
+        "source_ref": "business_process_model.json: proc_user_login; data_model.json: AccessToken, RefreshToken models"
+      },
+      {
+        "note": "Admin actions (onboarding status, account status, role changes) are logged in action_history table with admin attribution and timestamps.",
+        "source_ref": "business_process_model.json: proc_admin_onboarding_approval, proc_admin_account_management, proc_admin_role_management; data_model.json: ActionHistory model"
+      },
+      {
+        "note": "Email notifications are sent via Gmail SMTP using FreeMarker templates. Email failures do not roll back user registration.",
+        "source_ref": "integration_catalog.json: Gmail SMTP enrichment; business_process_model.json: proc_user_registration variations"
+      },
+      {
+        "note": "Performance data from OneView API is retrieved on-demand via /performance endpoint. No local caching or persistence of OneView data.",
+        "source_ref": "integration_catalog.json: OneView API enrichment; repository_summary.json: entry_points (PerformaceController)"
+      }
+    ]
+  },
+  "security_and_privacy_architecture": {
+    "summary": "The system implements JWT-based stateless authentication with short-lived access tokens (30 min) and long-lived refresh tokens (24 hours). Passwords are hashed with BCrypt before storage. Role-based access control (RBAC) protects admin endpoints (/api/v1/admin/**) with ADMIN role requirement. Tokens are stored in database with expiration and revocation flags. Audit logging records all admin actions with timestamps and attribution. However, critical security gaps exist: hardcoded credentials in source code (OneView API) and configuration files (database, SMTP), missing SSL/TLS for database connections, no rate limiting or account lockout for authentication endpoints, no multi-factor authentication (MFA), and no comprehensive audit logging for authentication events.",
+    "control_highlights": [
+      {
+        "control": "JWT Authentication with Token Revocation",
+        "description": "Access tokens (30 min) and refresh tokens (24 hours) are signed with HS256. Tokens are stored in database with revoked flag. Old tokens are revoked on login.",
+        "source_ref": "security_privacy_assessment.json: authorization_model_summary; business_process_model.json: proc_user_login"
+      },
+      {
+        "control": "BCrypt Password Hashing",
+        "description": "User passwords are hashed with BCrypt before storage. Plain text passwords are never stored or logged.",
+        "source_ref": "security_privacy_assessment.json: sensitive_data_identification (Authentication Credentials - Passwords)"
+      },
+      {
+        "control": "Role-Based Access Control (RBAC)",
+        "description": "Admin endpoints require ADMIN role. JWT token filter validates role claims before allowing access.",
+        "source_ref": "security_privacy_assessment.json: authorization_model_summary (Role-Based Access Control)"
+      },
+      {
+        "control": "Audit Logging for Admin Actions",
+        "description": "All admin actions (onboarding status, account status, role changes) are logged in action_history table with admin email, user email, action details, and timestamps.",
+        "source_ref": "security_privacy_assessment.json: sensitive_data_identification (Audit and Compliance Data); business_process_model.json: proc_admin_onboarding_approval"
+      },
+      {
+        "control": "HTTPS for External Communications",
+        "description": "OneView API and Gmail SMTP integrations use HTTPS/SSL. Kubernetes service exposes port 80 internally (ClusterIP); external HTTPS termination assumed at ingress/load balancer.",
+        "source_ref": "integration_catalog.json: OneView API, Gmail SMTP enrichments; repository_summary.json: kubernetes_configuration"
+      }
+    ]
+  },
+  "business_alignment": {
+    "summary": "The software architecture directly supports six core business processes: User Registration (proc_user_registration), Admin Onboarding Approval (proc_admin_onboarding_approval), User Login (proc_user_login), Token Refresh (proc_token_refresh), Admin Account Management (proc_admin_account_management), and Admin Role Management (proc_admin_role_management). Each process is implemented via REST API endpoints, service layer orchestration, and database persistence. Email notifications keep users informed during onboarding. Audit logging ensures compliance and traceability for admin actions. The architecture enables controlled access to the COVE platform with admin oversight.",
+    "process_links": [
+      {
+        "process_id": "proc_user_registration",
+        "supporting_components": ["AuthRestController (/register)", "UserServiceImpl", "EmailServiceImpl", "UserRepository"],
+        "source_ref": "business_process_model.json: proc_user_registration"
+      },
+      {
+        "process_id": "proc_admin_onboarding_approval",
+        "supporting_components": ["AdminController (/api/v1/admin/{toEmail}/onboarding-status)", "AdminServiceImpl", "EmailServiceImpl", "ActionHistoryServiceImpl", "UserRepository"],
+        "source_ref": "business_process_model.json: proc_admin_onboarding_approval"
+      },
+      {
+        "process_id": "proc_user_login",
+        "supporting_components": ["AuthRestController (/login)", "UserServiceImpl", "JwtAccessTokenUtil", "JwtRefreshTokenUtil", "AccessTokenRepo", "RefreshTokenRepo"],
+        "source_ref": "business_process_model.json: proc_user_login"
+      },
+      {
+        "process_id": "proc_token_refresh",
+        "supporting_components": ["AuthRestController (/refresh-token)", "AuthServiceImpl", "JwtRefreshTokenUtil"],
+        "source_ref": "business_process_model.json: proc_token_refresh"
+      },
+      {
+        "process_id": "proc_admin_account_management",
+        "supporting_components": ["AdminController (/api/v1/admin/{toEmail}/account-status)", "AdminServiceImpl", "ActionHistoryServiceImpl", "UserRepository"],
+        "source_ref": "business_process_model.json: proc_admin_account_management"
+      },
+      {
+        "process_id": "proc_admin_role_management",
+        "supporting_components": ["AdminController (/api/v1/admin/{toEmail}/role)", "AdminServiceImpl", "ActionHistoryServiceImpl", "UserRepository"],
+        "source_ref": "business_process_model.json: proc_admin_role_management"
+      }
+    ]
+  },
+  "operational_and_risk": {
+    "tech_debt_summary": {
+      "status": "not_available",
+      "reason": "tech_debt_risk.json artifact not found; no tech debt analysis performed by Agent 07"
+    },
+    "residual_risks": [
+      {
+        "risk": "Hardcoded Credentials in Source Code and Configuration Files",
+        "severity": "critical",
+        "description": "OneView API credentials are hardcoded in OneViewServiceImpl.java. Database and SMTP credentials are stored in plain text in application-dev.properties. This exposes credentials to anyone with repository or deployment access.",
+        "evidence": ["security_privacy_assessment.json: security_smells (Hardcoded Credentials, Credentials in Configuration Files)"]
+      },
+      {
+        "risk": "Missing SSL/TLS for Database Connection",
+        "severity": "high",
+        "description": "MySQL database connection does not explicitly configure SSL/TLS encryption. Database traffic may be transmitted in plain text, exposing sensitive data to network sniffing.",
+        "evidence": ["security_privacy_assessment.json: security_smells (Missing SSL/TLS for Database Connection)"]
+      },
+      {
+        "risk": "No Rate Limiting or Account Lockout",
+        "severity": "high",
+        "description": "Authentication endpoints (/login, /register) lack rate limiting and account lockout mechanisms. System is vulnerable to brute force attacks and credential stuffing.",
+        "evidence": ["security_privacy_assessment.json: security_smells (No Rate Limiting, No Account Lockout)"]
+      },
+      {
+        "risk": "No Multi-Factor Authentication (MFA)",
+        "severity": "medium",
+        "description": "System relies solely on username/password authentication. No MFA implementation increases risk of account compromise from credential theft.",
+        "evidence": ["security_privacy_assessment.json: security_smells (No Multi-Factor Authentication)"]
+      },
+      {
+        "risk": "Minimal Test Coverage",
+        "severity": "medium",
+        "description": "Test files are commented out; no active unit or integration tests detected. Lack of automated testing increases risk of regressions and bugs in production.",
+        "evidence": ["repository_summary.json: testing (status: Minimal test coverage - tests are commented out)"]
+      },
+      {
+        "risk": "No Database Migration Tooling",
+        "severity": "medium",
+        "description": "System relies on JPA auto-DDL for schema evolution. No Flyway or Liquibase migrations detected. Schema changes are not version-controlled or auditable.",
+        "evidence": ["repository_summary.json: gaps_and_unknowns (Database Migrations); data_model.json: analysis_metadata.limits_or_unknowns"]
+      },
+      {
+        "risk": "Email Notification Failures Do Not Roll Back Transactions",
+        "severity": "low",
+        "description": "User registration succeeds even if email notification fails. Users may not receive pending approval emails, leading to confusion.",
+        "evidence": ["business_process_model.json: proc_user_registration variations (Email send failure)"]
+      },
+      {
+        "risk": "No API Documentation (Swagger/OpenAPI)",
+        "severity": "low",
+        "description": "No API specification found. Lack of documentation increases onboarding time for developers and integration partners.",
+        "evidence": ["repository_summary.json: gaps_and_unknowns (API Documentation)"]
+      }
+    ]
+  },
+  "views_and_diagrams_index": {
+    "diagrams": [
+      {
+        "diagram_id": "context_diagram",
+        "title": "System Context Diagram",
+        "type": "context",
+        "file": "architecture_diagrams.md",
+        "mermaid_anchor": "System Context Diagram",
+        "source_refs": ["integration_catalog.json: touchpoints", "business_process_model.json: actors", "domain_model.json: bounded_contexts"]
+      },
+      {
+        "diagram_id": "container_diagram",
+        "title": "Container/Module Diagram",
+        "type": "container",
+        "file": "architecture_diagrams.md",
+        "mermaid_anchor": "Container/Module Diagram",
+        "source_refs": ["dependency_graph.json: service_module_graph.nodes", "repository_summary.json: modules"]
+      },
+      {
+        "diagram_id": "integration_landscape",
+        "title": "Integration Landscape Diagram",
+        "type": "integration",
+        "file": "architecture_diagrams.md",
+        "mermaid_anchor": "Integration Landscape Diagram",
+        "source_refs": ["integration_catalog.json: touchpoint_enrichments"]
+      },
+      {
+        "diagram_id": "data_flow_diagram",
+        "title": "Data Flow Diagram (Logical)",
+        "type": "data_flow",
+        "file": "architecture_diagrams.md",
+        "mermaid_anchor": "Data Flow Diagram (Logical)",
+        "source_refs": ["data_model.json: logical_models, key_relationships", "business_process_model.json: processes"]
+      },
+      {
+        "diagram_id": "deployment_diagram",
+        "title": "Deployment Diagram (AWS EKS)",
+        "type": "deployment",
+        "file": "architecture_diagrams.md",
+        "mermaid_anchor": "Deployment Diagram (AWS EKS)",
+        "source_refs": ["repository_summary.json: deployment, kubernetes_configuration", "integration_catalog.json: AWS EKS touchpoint"]
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "inputs": [
+      "repository_summary.json",
+      "dependency_graph.json",
+      "domain_model.json",
+      "integration_catalog.json",
+      "data_model.json",
+      "security_privacy_assessment.json",
+      "business_process_model.json"
+    ],
+    "optional_source_files_read": [],
+    "limits_or_unknowns": [
+      "tech_debt_risk.json not found; no tech debt analysis included",
+      "Deployment diagram based on Kubernetes manifests and repository summary; runtime behavior not observed",
+      "Integration contract details inferred from configuration files and service code; no API specifications (OpenAPI/Swagger) available",
+      "Timeout and retry configurations not explicitly set in application code; rely on library defaults",
+      "Database schema relationships inferred from JPA annotations; no database migration scripts or ER diagrams available",
+      "Email template content not analyzed; only service-level email sending logic reviewed",
+      "OneView API integration details limited to implementation code; no API specification or contract documentation available",
+      "Security controls for infrastructure services (Eureka, Prometheus, ECR, EKS) not visible in application code; may be handled at infrastructure level"
+    ]
+  }
+}
