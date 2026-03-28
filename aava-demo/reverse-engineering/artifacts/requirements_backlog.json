@@ -18,28 +18,28 @@
     "modules": [
       {
         "module_id": "mod_user_management",
-        "name": "User Management Module",
-        "description": "Handles user registration, profile management, onboarding workflow (pending_approval → approved/reject), account activation/deactivation, and role assignment (CUSTOMER, ADMIN). Provides user search and pagination capabilities.",
+        "name": "User Management",
+        "description": "Handles user registration, profile management, onboarding workflow (pending_approval → approved/reject), account activation/deactivation, role assignment (CUSTOMER, ADMIN), and user search with pagination.",
         "mapped_artifacts": [
           {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "service_layer.services[UserService, AdminService]",
-            "notes": "User and admin service responsibilities"
-          },
-          {
             "artifact_file": "domain_model.json",
-            "section_or_key": "bounded_contexts.contexts[User Management]",
-            "notes": "User Management bounded context definition"
+            "section_or_key": "bounded_contexts[0] (User Management)",
+            "notes": "Core entities: User; Responsibilities: registration, onboarding, account management, role assignment"
           },
           {
             "artifact_file": "business_process_model.json",
-            "section_or_key": "business_processes.processes[proc_user_registration, proc_admin_onboarding_approval, proc_admin_account_management, proc_admin_role_management]",
-            "notes": "User registration and admin management processes"
+            "section_or_key": "processes[0,1] (proc_user_registration, proc_admin_onboarding_approval)",
+            "notes": "User registration creates pending approval; admin approves/rejects"
+          },
+          {
+            "artifact_file": "data_model.json",
+            "section_or_key": "logical_models[0] (UserEntity)",
+            "notes": "users table with onboardingStatus, isActive, role fields"
           }
         ],
         "dependencies": [
           "mod_authentication_authorization",
-          "mod_notification",
+          "mod_email_notifications",
           "mod_audit_compliance"
         ],
         "interfaces_summary": [
@@ -49,216 +49,160 @@
       },
       {
         "module_id": "mod_authentication_authorization",
-        "name": "Authentication & Authorization Module",
-        "description": "Provides JWT-based stateless authentication with short-lived access tokens (30 minutes) and long-lived refresh tokens (24 hours). Handles user login, token generation, validation, refresh, and revocation. Implements role-based access control (RBAC) with CUSTOMER and ADMIN roles. Includes password encryption with BCrypt.",
+        "name": "Authentication & Authorization",
+        "description": "Provides JWT-based stateless authentication with short-lived access tokens (30 min) and long-lived refresh tokens (24 hours). Handles user login, token generation, validation, refresh, and revocation. Enforces role-based access control (RBAC) for admin endpoints.",
         "mapped_artifacts": [
           {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "security_configuration",
-            "notes": "JWT authentication and security configuration"
+            "artifact_file": "domain_model.json",
+            "section_or_key": "bounded_contexts[1] (Authentication & Authorization)",
+            "notes": "Core entities: AccessToken, RefreshToken, User; Responsibilities: login, token lifecycle, RBAC"
           },
           {
-            "artifact_file": "domain_model.json",
-            "section_or_key": "bounded_contexts.contexts[Authentication & Authorization]",
-            "notes": "Authentication & Authorization bounded context definition"
+            "artifact_file": "business_process_model.json",
+            "section_or_key": "processes[2,3] (proc_user_login, proc_token_refresh)",
+            "notes": "Login validates credentials, generates tokens; refresh token obtains new access token"
           },
           {
             "artifact_file": "security_privacy_assessment.json",
             "section_or_key": "authorization_model_summary",
-            "notes": "JWT authentication and RBAC patterns"
+            "notes": "JWT with HS256 signing, BCrypt password hashing, RBAC with CUSTOMER/ADMIN roles"
           },
           {
-            "artifact_file": "business_process_model.json",
-            "section_or_key": "business_processes.processes[proc_user_login, proc_token_refresh]",
-            "notes": "Login and token refresh processes"
+            "artifact_file": "data_model.json",
+            "section_or_key": "logical_models[1,2] (AccessToken, RefreshToken)",
+            "notes": "access_token and refresh_token tables with expiration and revocation flags"
           }
         ],
         "dependencies": [
-          "mod_user_management",
-          "AWS RDS MySQL"
+          "mod_user_management"
         ],
         "interfaces_summary": [
           "REST API: POST /login, POST /check-access-token, POST /refresh-token, POST /revoke-access-token, POST /revoke-refresh-token",
-          "Security Filter: JwtTokenAuthenticationFilter"
+          "Security Components: JwtAccessTokenUtil, JwtRefreshTokenUtil, JwtTokenAuthenticationFilter, CustomUserDetailsService"
         ],
         "confidence": "high"
       },
       {
         "module_id": "mod_audit_compliance",
-        "name": "Audit & Compliance Module",
-        "description": "Records all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) with timestamps and admin attribution. Provides paginated audit log retrieval with filtering by date range, action type, and user email.",
+        "name": "Audit & Compliance",
+        "description": "Records all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) with timestamps and admin attribution. Provides paginated audit log retrieval with filtering.",
         "mapped_artifacts": [
           {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "service_layer.services[ActionHistoryService]",
-            "notes": "Action history service responsibilities"
-          },
-          {
             "artifact_file": "domain_model.json",
-            "section_or_key": "bounded_contexts.contexts[Audit & Compliance]",
-            "notes": "Audit & Compliance bounded context definition"
+            "section_or_key": "bounded_contexts[2] (Audit & Compliance)",
+            "notes": "Core entities: ActionHistory; Responsibilities: audit trail, action logging"
           },
           {
             "artifact_file": "data_model.json",
-            "section_or_key": "logical_models.models[ActionHistory]",
-            "notes": "ActionHistory entity definition"
+            "section_or_key": "logical_models[3] (ActionHistory)",
+            "notes": "action_history table with admin attribution, action details, timestamps"
+          },
+          {
+            "artifact_file": "business_process_model.json",
+            "section_or_key": "processes[1,4,5] (proc_admin_onboarding_approval, proc_admin_account_management, proc_admin_role_management)",
+            "notes": "All admin actions log to action_history"
           }
         ],
         "dependencies": [
-          "mod_user_management",
-          "AWS RDS MySQL"
+          "mod_user_management"
         ],
         "interfaces_summary": [
-          "REST API: GET /api/v1/admin/action-history"
+          "REST API: GET /api/v1/admin/action-history",
+          "Service Layer: ActionHistoryService"
         ],
         "confidence": "high"
       },
       {
-        "module_id": "mod_notification",
-        "name": "Notification Module",
-        "description": "Sends email notifications to users during onboarding workflow transitions (pending approval, approved, rejected). Uses FreeMarker templates for email content and Gmail SMTP for delivery.",
+        "module_id": "mod_email_notifications",
+        "name": "Email Notifications",
+        "description": "Sends automated email notifications to users during onboarding workflow transitions (pending approval, approved, rejected) using FreeMarker templates and Gmail SMTP.",
         "mapped_artifacts": [
           {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "service_layer.services[EmailService]",
-            "notes": "Email service responsibilities and templates"
-          },
-          {
             "artifact_file": "integration_catalog.json",
-            "section_or_key": "touchpoint_enrichments.enrichments[Gmail SMTP]",
-            "notes": "Gmail SMTP integration details"
+            "section_or_key": "touchpoint_enrichments[2] (Gmail SMTP)",
+            "notes": "Outbound SMTP/SSL integration for email delivery"
           },
           {
             "artifact_file": "business_process_model.json",
-            "section_or_key": "business_processes.processes[proc_user_registration, proc_admin_onboarding_approval].steps (email notification steps)",
-            "notes": "Email notification steps in user registration and onboarding approval processes"
+            "section_or_key": "processes[0,1] (proc_user_registration, proc_admin_onboarding_approval)",
+            "notes": "Email sent at registration (pending), approval, and rejection"
+          },
+          {
+            "artifact_file": "repository_summary.json",
+            "section_or_key": "service_layer (EmailService)",
+            "notes": "EmailServiceImpl with FreeMarker templates"
           }
         ],
         "dependencies": [
-          "Gmail SMTP"
+          "Gmail SMTP (external)"
         ],
         "interfaces_summary": [
-          "Service Layer: EmailService.sendEmailReject, sendEmailApprove, sendEmailPendingApproval"
+          "Service Layer: EmailService",
+          "External: Gmail SMTP (smtp.gmail.com:465)"
         ],
         "confidence": "high"
       },
       {
         "module_id": "mod_external_integration",
-        "name": "External Integration Module",
-        "description": "Integrates with external OneView API to fetch project performance metrics and RAG (Red-Amber-Green) status data. Provides a single REST endpoint for performance data retrieval. Handles OneView authentication with custom token-based mechanism.",
+        "name": "External Integration",
+        "description": "Integrates with external OneView API to fetch project performance metrics and RAG (Red-Amber-Green) status data. Provides a single endpoint for performance data retrieval.",
         "mapped_artifacts": [
-          {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "service_layer.services[OneViewService]",
-            "notes": "OneView service responsibilities"
-          },
           {
             "artifact_file": "integration_catalog.json",
-            "section_or_key": "touchpoint_enrichments.enrichments[OneView API]",
-            "notes": "OneView API integration details"
+            "section_or_key": "touchpoint_enrichments[0] (OneView API)",
+            "notes": "Outbound HTTPS/REST integration with custom token authentication"
           },
           {
-            "artifact_file": "domain_model.json",
-            "section_or_key": "bounded_contexts.contexts[External Integration]",
-            "notes": "External Integration bounded context definition"
+            "artifact_file": "business_process_model.json",
+            "section_or_key": "application_purpose_summary.primary_capabilities[4]",
+            "notes": "External Performance Data Integration capability"
+          },
+          {
+            "artifact_file": "repository_summary.json",
+            "section_or_key": "service_layer (OneViewService)",
+            "notes": "OneViewServiceImpl with hardcoded credentials (security risk)"
           }
         ],
         "dependencies": [
-          "OneView API"
+          "OneView API (external)"
         ],
         "interfaces_summary": [
-          "REST API: GET /performance"
+          "REST API: GET /performance",
+          "External: OneView API (https://cdoneview.avateam.io)"
         ],
         "confidence": "high"
       },
       {
-        "module_id": "mod_data_persistence",
-        "name": "Data Persistence Module",
-        "description": "Provides data access layer using Spring Data JPA repositories for CRUD operations on user entities, tokens, and audit logs. Manages database schema with JPA auto-DDL. Includes custom queries with pagination support.",
+        "module_id": "mod_infrastructure_observability",
+        "name": "Infrastructure & Observability",
+        "description": "Provides service discovery via Netflix Eureka, metrics collection via Prometheus, health checks, and AWS EKS deployment with automated CI/CD via AWS CodeBuild.",
         "mapped_artifacts": [
-          {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "repository_layer",
-            "notes": "Repository layer definition"
-          },
-          {
-            "artifact_file": "data_model.json",
-            "section_or_key": "logical_models.models",
-            "notes": "UserEntity, AccessToken, RefreshToken, ActionHistory entity definitions"
-          },
-          {
-            "artifact_file": "data_model.json",
-            "section_or_key": "ownership_mapping",
-            "notes": "Data asset ownership mapping"
-          }
-        ],
-        "dependencies": [
-          "AWS RDS MySQL"
-        ],
-        "interfaces_summary": [
-          "JPA Repositories: UserRepository, AccessTokenRepo, RefreshTokenRepo, ActionHistoryRepo, CustomerDao"
-        ],
-        "confidence": "high"
-      },
-      {
-        "module_id": "mod_observability",
-        "name": "Observability Module",
-        "description": "Exposes Prometheus metrics via Spring Actuator for application health, JVM metrics, and custom metrics. Provides health check endpoint for Kubernetes liveness/readiness probes. Includes Prometheus scrape annotations in Kubernetes deployment.",
-        "mapped_artifacts": [
-          {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "configuration.actuator_endpoints",
-            "notes": "Actuator endpoints configuration"
-          },
           {
             "artifact_file": "integration_catalog.json",
-            "section_or_key": "touchpoint_enrichments.enrichments[Prometheus]",
-            "notes": "Prometheus integration details"
+            "section_or_key": "touchpoint_enrichments[3,4,5,6] (Netflix Eureka, Prometheus, AWS ECR, AWS EKS)",
+            "notes": "Service discovery, metrics scraping, container orchestration"
           },
-          {
-            "artifact_file": "repository_summary.json",
-            "section_or_key": "entry_points[Healthcheck]",
-            "notes": "Health check endpoint"
-          }
-        ],
-        "dependencies": [
-          "Prometheus"
-        ],
-        "interfaces_summary": [
-          "REST API: GET /healthcheck, GET /actuator/health, GET /actuator/info, GET /actuator/prometheus, GET /actuator/metrics"
-        ],
-        "confidence": "high"
-      },
-      {
-        "module_id": "mod_deployment_infrastructure",
-        "name": "Deployment & Infrastructure Module",
-        "description": "Manages containerization with Docker, image storage in AWS ECR, and orchestration on AWS EKS. Includes automated CI/CD pipeline via AWS CodeBuild with build, test, Docker image creation, ECR push, and EKS deployment. Provides service discovery via Netflix Eureka.",
-        "mapped_artifacts": [
           {
             "artifact_file": "repository_summary.json",
             "section_or_key": "deployment, kubernetes_configuration, ci_cd_pipeline",
-            "notes": "Deployment and CI/CD configuration"
-          },
-          {
-            "artifact_file": "integration_catalog.json",
-            "section_or_key": "touchpoint_enrichments.enrichments[AWS ECR, AWS EKS, Netflix Eureka]",
-            "notes": "AWS ECR, EKS, and Eureka integration details"
+            "notes": "Docker, Kubernetes, AWS CodeBuild, Prometheus annotations"
           },
           {
             "artifact_file": "architecture_summary.json",
-            "section_or_key": "views_and_diagrams_index.diagrams[deployment_diagram]",
-            "notes": "Deployment diagram reference"
+            "section_or_key": "architectural_drivers (Scalability and Resilience, Observability and Monitoring, Operational Efficiency)",
+            "notes": "Reactive programming, Kubernetes with 2 replicas, Prometheus metrics, automated CI/CD"
           }
         ],
         "dependencies": [
-          "AWS ECR",
-          "AWS EKS",
-          "Netflix Eureka"
+          "Netflix Eureka (external)",
+          "Prometheus (external)",
+          "AWS ECR (external)",
+          "AWS EKS (external)"
         ],
         "interfaces_summary": [
-          "Docker: Dockerfile with amazoncorretto:17 base image",
-          "Kubernetes: Deployment (2 replicas, resource limits), Service (ClusterIP, port 80)",
-          "CI/CD: buildspec.yml with install, pre_build, build, post_build phases"
+          "REST API: GET /healthcheck",
+          "Actuator: /actuator/health, /actuator/info, /actuator/prometheus, /actuator/metrics",
+          "External: Netflix Eureka, Prometheus, AWS ECR, AWS EKS"
         ],
         "confidence": "high"
       }
@@ -267,801 +211,671 @@
   "requirements": {
     "items": [
       {
-        "req_id": "REQ-FUNC-001",
-        "title": "User Registration",
-        "description": "The system shall allow new users to register by providing email, password, name, company, and optional fields (country, designation, client details). Email must be unique. Password must be hashed with BCrypt before storage. Registration creates a user record with pending_approval status and isActive=false.",
+        "req_id": "REQ-USR-001",
+        "title": "User Registration with Email Validation",
+        "description": "The system shall allow new users to register by providing email, password, name, company, and optional fields (country, designation, client details). Email must be unique. Password must be hashed with BCrypt before storage. A pending approval email notification must be sent upon successful registration.",
         "type": "functional",
         "priority": "must",
-        "module_ids": ["mod_user_management"],
+        "module_ids": ["mod_user_management", "mod_email_notifications"],
         "process_refs": ["proc_user_registration"],
         "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_user_registration]"},
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AuthRestController].endpoints[POST /register]"}
+          {"artifact": "business_process_model.json", "pointer": "processes[0] (proc_user_registration)"},
+          {"artifact": "data_model.json", "pointer": "logical_models[0] (UserEntity)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "sensitive_data_identification[0] (BCrypt password hashing)"}
         ],
         "acceptance_criteria": [
-          "User submits registration form with required fields (email, password, firstname, lastname, company)",
-          "System validates email uniqueness; rejects duplicate emails with error message",
-          "System hashes password with BCrypt before storage",
-          "System creates UserEntity with onboardingStatus=pending_approval and isActive=false",
-          "System returns HTTP 201 Created with success message on successful registration"
+          "POST /register endpoint accepts AuthUser payload with required fields (email, password, firstname, lastname, company)",
+          "System validates email uniqueness; returns 400 error if email already exists",
+          "Password is hashed with BCrypt before storage in users table",
+          "User record created with onboardingStatus=pending_approval and isActive=false",
+          "Pending approval email sent to user email address",
+          "System returns 201 Created with success message on successful registration"
         ],
-        "assumptions_or_unknowns": []
+        "assumptions_or_unknowns": [
+          "Email validation format not specified; assume standard email regex",
+          "Password complexity requirements not specified; assume BCrypt hashing is sufficient"
+        ]
       },
       {
-        "req_id": "REQ-FUNC-002",
-        "title": "User Registration Email Notification",
-        "description": "The system shall send a pending approval email notification to the user after successful registration. Email failure shall not roll back user registration.",
+        "req_id": "REQ-USR-002",
+        "title": "Admin Onboarding Approval Workflow",
+        "description": "The system shall allow administrators to approve or reject user registrations via PUT /api/v1/admin/{toEmail}/onboarding-status endpoint. Approval sets onboardingStatus=approved and isActive=true. Rejection sets onboardingStatus=reject and isActive=false. Appropriate email notifications (approval or rejection with admin comments) must be sent. All actions must be logged in action_history table.",
         "type": "functional",
         "priority": "must",
-        "module_ids": ["mod_notification"],
-        "process_refs": ["proc_user_registration"],
-        "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_user_registration].steps[reg_step_5]"},
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[Gmail SMTP]"}
-        ],
-        "acceptance_criteria": [
-          "System sends email to user's registered email address with pending approval message",
-          "Email uses FreeMarker template (email-template-pending-approval.ftl)",
-          "Email failure logs error but does not prevent user registration from succeeding"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-FUNC-003",
-        "title": "Admin Onboarding Approval",
-        "description": "The system shall allow administrators to approve or reject user registrations via PUT /api/v1/admin/{toEmail}/onboarding-status endpoint. Approval sets onboardingStatus=approved and isActive=true. Rejection sets onboardingStatus=reject and isActive=false. Admin can provide optional description/comments.",
-        "type": "functional",
-        "priority": "must",
-        "module_ids": ["mod_user_management"],
+        "module_ids": ["mod_user_management", "mod_email_notifications", "mod_audit_compliance"],
         "process_refs": ["proc_admin_onboarding_approval"],
         "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_admin_onboarding_approval]"},
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AdminController].endpoints[PUT /api/v1/admin/{toEmail}/onboarding-status]"}
+          {"artifact": "business_process_model.json", "pointer": "processes[1] (proc_admin_onboarding_approval)"},
+          {"artifact": "domain_model.json", "pointer": "bounded_contexts[0] (User Management)"},
+          {"artifact": "data_model.json", "pointer": "logical_models[3] (ActionHistory)"}
         ],
         "acceptance_criteria": [
-          "Admin submits onboarding status update with status (approved | reject | pending_approval) and optional description",
-          "System validates admin role via JWT token",
-          "System retrieves user by email; returns error if user not found",
-          "System updates user's onboardingStatus and isActive fields based on status",
-          "System persists updated user entity to database",
-          "System returns HTTP 200 OK with success message"
+          "PUT /api/v1/admin/{toEmail}/onboarding-status endpoint requires ADMIN role",
+          "Admin provides status (approved | reject | pending_approval) and optional description",
+          "System updates user onboardingStatus and isActive fields based on status",
+          "Approval email sent if status=approved; rejection email with description sent if status=reject",
+          "ActionHistory record created with admin email, user email, status, description, actionType=OnBoarding Status",
+          "System returns 200 OK with success message",
+          "System returns 400 error if user not found"
         ],
         "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-FUNC-004",
-        "title": "Admin Onboarding Approval Email Notification",
-        "description": "The system shall send an email notification to the user after admin approves or rejects their registration. Approval email uses email-template-approved.ftl. Rejection email uses email-template-rejected.ftl and includes admin comments.",
-        "type": "functional",
-        "priority": "must",
-        "module_ids": ["mod_notification"],
-        "process_refs": ["proc_admin_onboarding_approval"],
-        "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_admin_onboarding_approval].steps[onboard_step_5]"},
-          {"artifact": "repository_summary.json", "pointer": "service_layer.services[EmailService].email_templates"}
-        ],
-        "acceptance_criteria": [
-          "System sends approval email if status=approved",
-          "System sends rejection email with admin comments if status=reject",
-          "System does not send email if status=pending_approval",
-          "Email uses appropriate FreeMarker template"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-FUNC-005",
-        "title": "User Login",
-        "description": "The system shall allow approved and active users to authenticate via POST /login endpoint with email and password. System validates credentials, checks onboarding status and account activation, revokes old tokens, generates new access token (30 min validity) and refresh token (24 hour validity), and returns tokens to user.",
+        "req_id": "REQ-AUTH-001",
+        "title": "JWT-Based User Login",
+        "description": "The system shall authenticate users via POST /login endpoint with email and password. Upon successful authentication, the system shall generate a new access token (30-minute validity) and refresh token (24-hour validity), revoke all existing tokens for the user, store new tokens in database, and return them in the response. Login must fail if user is not approved, account is deactivated, or credentials are invalid.",
         "type": "functional",
         "priority": "must",
         "module_ids": ["mod_authentication_authorization"],
         "process_refs": ["proc_user_login"],
         "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_user_login]"},
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AuthRestController].endpoints[POST /login]"}
+          {"artifact": "business_process_model.json", "pointer": "processes[2] (proc_user_login)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication)"},
+          {"artifact": "data_model.json", "pointer": "logical_models[1,2] (AccessToken, RefreshToken)"}
         ],
         "acceptance_criteria": [
-          "User submits login request with email and password",
-          "System retrieves user by email; returns error if user not found",
-          "System checks onboardingStatus; rejects login if not approved",
-          "System checks isActive flag; rejects login if account deactivated",
-          "System validates password with BCrypt; rejects login if password does not match",
-          "System revokes all existing access tokens and refresh tokens for user",
-          "System generates new access token (30 min validity) and refresh token (24 hour validity)",
-          "System stores tokens in database with expiration and revocation flags",
-          "System returns HTTP 200 OK with Token payload (email, accessToken, refreshToken)"
+          "POST /login endpoint accepts AuthenticationRequest payload with email and password",
+          "System validates user exists; returns 403 error if not found",
+          "System checks onboardingStatus; returns 403 error if pending_approval or reject",
+          "System checks isActive flag; returns 403 error if false",
+          "System validates password against BCrypt hash; returns 403 error if invalid",
+          "System revokes all existing access and refresh tokens for user (sets revoked=true)",
+          "System generates new access token (30-minute validity) and refresh token (24-hour validity) signed with HS256",
+          "New tokens stored in access_token and refresh_token tables with expired=false, revoked=false",
+          "System returns 200 OK with Token payload (email, accessToken, refreshToken)"
         ],
-        "assumptions_or_unknowns": []
+        "assumptions_or_unknowns": [
+          "JWT secret key management not specified; assume configured in application properties"
+        ]
       },
       {
-        "req_id": "REQ-FUNC-006",
-        "title": "Token Refresh",
-        "description": "The system shall allow users to obtain a new access token using a valid refresh token via POST /refresh-token endpoint. System validates refresh token signature, expiration, and revocation status, then generates and returns a new access token.",
+        "req_id": "REQ-AUTH-002",
+        "title": "Token Refresh Workflow",
+        "description": "The system shall allow users to obtain a new access token using a valid refresh token via POST /refresh-token endpoint. The system shall validate the refresh token signature, expiration, and revocation status before generating a new access token.",
         "type": "functional",
         "priority": "must",
         "module_ids": ["mod_authentication_authorization"],
         "process_refs": ["proc_token_refresh"],
         "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_token_refresh]"},
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AuthRestController].endpoints[POST /refresh-token]"}
+          {"artifact": "business_process_model.json", "pointer": "processes[3] (proc_token_refresh)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication)"}
         ],
         "acceptance_criteria": [
-          "User submits refresh token via POST /refresh-token endpoint",
+          "POST /refresh-token endpoint accepts refresh token parameter",
           "System validates refresh token signature, expiration, and revocation status",
-          "System generates new access token with 30-minute validity",
-          "System returns HTTP 200 OK with RefreshTokenResponse containing new access token",
-          "System returns error if refresh token is invalid, expired, or revoked"
+          "System returns error if refresh token is invalid, expired, or revoked",
+          "System generates new access token (30-minute validity) with user email from refresh token",
+          "System returns 200 OK with RefreshTokenResponse containing new access token"
         ],
         "assumptions_or_unknowns": [
-          "Token refresh implementation details partially inferred; detailed code for JwtRefreshTokenUtil.generateNewRefreshToken not read"
+          "Refresh token validation logic details partially inferred; assume JwtRefreshTokenUtil handles validation"
         ]
       },
       {
-        "req_id": "REQ-FUNC-007",
+        "req_id": "REQ-AUTH-003",
         "title": "Token Revocation",
-        "description": "The system shall allow users to revoke access tokens and refresh tokens via POST /revoke-access-token and POST /revoke-refresh-token endpoints. Revocation sets the revoked flag to true in the database.",
+        "description": "The system shall allow users to revoke access tokens and refresh tokens via POST /revoke-access-token and POST /revoke-refresh-token endpoints. Revocation sets the revoked flag to true in the database, preventing further use of the token.",
         "type": "functional",
+        "priority": "should",
+        "module_ids": ["mod_authentication_authorization"],
+        "process_refs": [],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "entry_points[1] (AuthRestController endpoints)"},
+          {"artifact": "data_model.json", "pointer": "logical_models[1,2] (AccessToken, RefreshToken)"}
+        ],
+        "acceptance_criteria": [
+          "POST /revoke-access-token endpoint accepts access token parameter",
+          "POST /revoke-refresh-token endpoint accepts refresh token parameter",
+          "System sets revoked=true for the specified token in database",
+          "System returns success response",
+          "Revoked tokens cannot be used for authentication or refresh"
+        ],
+        "assumptions_or_unknowns": [
+          "Token revocation endpoint behavior not fully traced in business process model; inferred from repository summary"
+        ]
+      },
+      {
+        "req_id": "REQ-AUTH-004",
+        "title": "Role-Based Access Control (RBAC)",
+        "description": "The system shall enforce role-based access control for admin endpoints (/api/v1/admin/**). Only users with ADMIN role shall be allowed to access these endpoints. JWT token filter shall validate role claims before allowing access.",
+        "type": "security",
         "priority": "must",
         "module_ids": ["mod_authentication_authorization"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AuthRestController].endpoints[POST /revoke-access-token, POST /revoke-refresh-token]"},
-          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary.patterns[JWT-based Authentication with Access and Refresh Tokens]"}
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (Role-Based Access Control)"},
+          {"artifact": "repository_summary.json", "pointer": "security_configuration (protected_endpoints)"}
         ],
         "acceptance_criteria": [
-          "User submits token revocation request with token parameter",
-          "System validates token and sets revoked flag to true in database",
-          "System returns success response",
-          "Revoked tokens cannot be used for authentication or token refresh"
+          "JwtTokenAuthenticationFilter validates JWT token for all requests",
+          "Admin endpoints (/api/v1/admin/**) require ADMIN role in JWT token claims",
+          "System returns 403 Forbidden if user does not have ADMIN role",
+          "Public endpoints (login, register, etc.) do not require authentication"
         ],
-        "assumptions_or_unknowns": [
-          "Token revocation logic details inferred from login flow; explicit revocation endpoint behavior not fully traced"
-        ]
+        "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-FUNC-008",
-        "title": "Admin Account Management",
-        "description": "The system shall allow administrators to activate or deactivate user accounts via PUT /api/v1/admin/{toEmail}/account-status endpoint. Activation sets isActive=true. Deactivation sets isActive=false. Admin can provide optional description/comments.",
+        "req_id": "REQ-ADM-001",
+        "title": "Admin Account Activation/Deactivation",
+        "description": "The system shall allow administrators to activate or deactivate user accounts via PUT /api/v1/admin/{toEmail}/account-status endpoint. Activation sets isActive=true; deactivation sets isActive=false. All actions must be logged in action_history table. No email notification is sent for account status changes.",
         "type": "functional",
         "priority": "must",
-        "module_ids": ["mod_user_management"],
+        "module_ids": ["mod_user_management", "mod_audit_compliance"],
         "process_refs": ["proc_admin_account_management"],
         "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_admin_account_management]"},
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AdminController].endpoints[PUT /api/v1/admin/{toEmail}/account-status]"}
+          {"artifact": "business_process_model.json", "pointer": "processes[4] (proc_admin_account_management)"},
+          {"artifact": "data_model.json", "pointer": "logical_models[0] (UserEntity.isActive)"}
         ],
         "acceptance_criteria": [
-          "Admin submits account status update with status (true for activate, false for deactivate) and optional description",
-          "System validates admin role via JWT token",
-          "System retrieves user by email; returns error if user not found",
-          "System updates user's isActive field",
-          "System persists updated user entity to database",
-          "System returns HTTP 200 OK with success message"
+          "PUT /api/v1/admin/{toEmail}/account-status endpoint requires ADMIN role",
+          "Admin provides status (true for activate, false for deactivate) and optional description",
+          "System updates user isActive field",
+          "ActionHistory record created with admin email, user email, account status, description, actionType=Account Status",
+          "System returns 200 OK with success message",
+          "System returns 400 error if user not found"
         ],
         "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-FUNC-009",
+        "req_id": "REQ-ADM-002",
         "title": "Admin Role Management",
-        "description": "The system shall allow administrators to change user roles (CUSTOMER or ADMIN) via PUT /api/v1/admin/{toEmail}/role endpoint. Admin can provide optional description/comments.",
+        "description": "The system shall allow administrators to change user roles (CUSTOMER or ADMIN) via PUT /api/v1/admin/{toEmail}/role endpoint. All actions must be logged in action_history table. No email notification is sent for role changes.",
         "type": "functional",
         "priority": "must",
-        "module_ids": ["mod_user_management"],
+        "module_ids": ["mod_user_management", "mod_audit_compliance"],
         "process_refs": ["proc_admin_role_management"],
         "traceability": [
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_admin_role_management]"},
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AdminController].endpoints[PUT /api/v1/admin/{toEmail}/role]"}
+          {"artifact": "business_process_model.json", "pointer": "processes[5] (proc_admin_role_management)"},
+          {"artifact": "data_model.json", "pointer": "logical_models[0] (UserEntity.role)"}
         ],
         "acceptance_criteria": [
-          "Admin submits role update with role (CUSTOMER | ADMIN) and optional description",
-          "System validates admin role via JWT token",
-          "System retrieves user by email; returns error if user not found",
-          "System updates user's role field (converted to uppercase)",
-          "System persists updated user entity to database",
-          "System returns HTTP 200 OK with success message"
+          "PUT /api/v1/admin/{toEmail}/role endpoint requires ADMIN role",
+          "Admin provides role (CUSTOMER | ADMIN) and optional description",
+          "System updates user role field (converted to uppercase)",
+          "ActionHistory record created with admin email, user email, role, description, actionType=Role Status",
+          "System returns 200 OK with success message",
+          "System returns 400 error if user not found"
         ],
         "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-FUNC-010",
-        "title": "Admin User Listing",
-        "description": "The system shall allow administrators to retrieve paginated user lists via GET /api/v1/admin/users endpoint with filtering by onboarding status and role.",
+        "req_id": "REQ-ADM-003",
+        "title": "Admin User Listing with Pagination",
+        "description": "The system shall allow administrators to retrieve a paginated list of users via GET /api/v1/admin/users endpoint with optional filtering by onboarding status and role.",
         "type": "functional",
         "priority": "should",
         "module_ids": ["mod_user_management"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AdminController].endpoints[GET /api/v1/admin/users]"}
+          {"artifact": "repository_summary.json", "pointer": "entry_points[2] (AdminController endpoints)"},
+          {"artifact": "repository_summary.json", "pointer": "repository_layer (UserRepository custom queries)"}
         ],
         "acceptance_criteria": [
-          "Admin submits user listing request with optional pagination parameters (page, size)",
-          "Admin can filter by onboarding status and role",
-          "System validates admin role via JWT token",
-          "System retrieves paginated user list from database",
-          "System returns HTTP 200 OK with user list and pagination metadata"
+          "GET /api/v1/admin/users endpoint requires ADMIN role",
+          "Endpoint accepts pagination parameters (page, size) and optional filters (onboardingStatus, role)",
+          "System returns paginated list of users matching filters",
+          "System returns 200 OK with user list"
         ],
         "assumptions_or_unknowns": [
-          "Admin user listing process not included in business process model (read-only query, not a state-changing workflow)"
+          "Pagination and filtering details inferred from repository summary; not traced in business process model"
         ]
       },
       {
-        "req_id": "REQ-FUNC-011",
+        "req_id": "REQ-ADM-004",
         "title": "Admin User Details Retrieval",
-        "description": "The system shall allow administrators to retrieve detailed user information by email via GET /api/v1/admin/user-details/{email} endpoint.",
+        "description": "The system shall allow administrators to retrieve detailed information for a specific user via GET /api/v1/admin/user-details/{email} endpoint.",
         "type": "functional",
         "priority": "should",
         "module_ids": ["mod_user_management"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AdminController].endpoints[GET /api/v1/admin/user-details/{email}]"}
+          {"artifact": "repository_summary.json", "pointer": "entry_points[2] (AdminController endpoints)"}
         ],
         "acceptance_criteria": [
-          "Admin submits user details request with user email",
-          "System validates admin role via JWT token",
-          "System retrieves user entity by email from database",
-          "System returns HTTP 200 OK with user details",
-          "System returns error if user not found"
+          "GET /api/v1/admin/user-details/{email} endpoint requires ADMIN role",
+          "System retrieves user entity by email",
+          "System returns 200 OK with user details",
+          "System returns 404 error if user not found"
         ],
         "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-FUNC-012",
-        "title": "Audit Log Recording",
-        "description": "The system shall record all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) in the action_history table with timestamps, admin email, user email, action details, and action type.",
-        "type": "functional",
+        "req_id": "REQ-AUD-001",
+        "title": "Audit Logging for Admin Actions",
+        "description": "The system shall record all administrative actions on user accounts (onboarding status changes, account activation/deactivation, role changes) in the action_history table with timestamps, admin attribution (admin email and name), user details, action type, and optional admin comments.",
+        "type": "non_functional",
         "priority": "must",
         "module_ids": ["mod_audit_compliance"],
         "process_refs": ["proc_admin_onboarding_approval", "proc_admin_account_management", "proc_admin_role_management"],
         "traceability": [
-          {"artifact": "data_model.json", "pointer": "logical_models.models[ActionHistory]"},
-          {"artifact": "business_process_model.json", "pointer": "business_processes.processes[proc_admin_onboarding_approval].steps[onboard_step_6]"}
+          {"artifact": "data_model.json", "pointer": "logical_models[3] (ActionHistory)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "sensitive_data_identification[4] (Audit and Compliance Data)"}
         ],
         "acceptance_criteria": [
-          "System creates ActionHistory record after each admin action",
-          "ActionHistory includes admin email, user email, action details, action type, and timestamps",
-          "ActionHistory is persisted to action_history table",
-          "Audit log recording does not prevent admin action from succeeding"
+          "ActionHistory record created for every admin action on user accounts",
+          "Record includes: userName, userEmail, userRole, userCompany, updateByAdminName, updateByAdminEmail, registrationId, action, adminComments, actionType, createdAt, updatedAt",
+          "ActionType values: OnBoarding Status, Account Status, Role Status",
+          "Timestamps auto-generated on record creation"
         ],
         "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-FUNC-013",
-        "title": "Audit Log Retrieval",
-        "description": "The system shall allow administrators to retrieve paginated audit logs via GET /api/v1/admin/action-history endpoint with filtering by date range, action type, and user email.",
+        "req_id": "REQ-AUD-002",
+        "title": "Audit Log Retrieval with Pagination",
+        "description": "The system shall allow administrators to retrieve a paginated audit log via GET /api/v1/admin/action-history endpoint with optional filtering by date range, user email, admin email, and action type.",
         "type": "functional",
         "priority": "should",
         "module_ids": ["mod_audit_compliance"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "entry_points[AdminController].endpoints[GET /api/v1/admin/action-history]"}
+          {"artifact": "repository_summary.json", "pointer": "entry_points[2] (AdminController endpoints)"},
+          {"artifact": "repository_summary.json", "pointer": "repository_layer (ActionHistoryRepo custom queries)"}
         ],
         "acceptance_criteria": [
-          "Admin submits audit log retrieval request with optional pagination parameters (page, size)",
-          "Admin can filter by date range, action type, and user email",
-          "System validates admin role via JWT token",
-          "System retrieves paginated audit log from database",
-          "System returns HTTP 200 OK with audit log entries and pagination metadata"
+          "GET /api/v1/admin/action-history endpoint requires ADMIN role",
+          "Endpoint accepts pagination parameters (page, size) and optional filters (date range, user email, admin email, action type)",
+          "System returns paginated list of ActionHistory records matching filters",
+          "System returns 200 OK with audit log"
         ],
         "assumptions_or_unknowns": [
-          "Action history retrieval process not included in business process model (read-only query, not a state-changing workflow)"
+          "Filtering details inferred from repository summary; not traced in business process model"
         ]
       },
       {
-        "req_id": "REQ-FUNC-014",
-        "title": "Performance Data Retrieval",
-        "description": "The system shall allow users to retrieve project performance metrics and RAG status data from external OneView API via GET /performance endpoint.",
+        "req_id": "REQ-EMAIL-001",
+        "title": "Email Notifications for Onboarding Workflow",
+        "description": "The system shall send automated email notifications to users at each stage of the onboarding workflow: pending approval (after registration), approved (after admin approval), and rejected (after admin rejection with comments). Emails shall be sent via Gmail SMTP using FreeMarker templates.",
         "type": "functional",
+        "priority": "must",
+        "module_ids": ["mod_email_notifications"],
+        "process_refs": ["proc_user_registration", "proc_admin_onboarding_approval"],
+        "traceability": [
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[2] (Gmail SMTP)"},
+          {"artifact": "repository_summary.json", "pointer": "service_layer (EmailService)"}
+        ],
+        "acceptance_criteria": [
+          "Pending approval email sent to user email after successful registration",
+          "Approval email sent to user email after admin approves onboarding",
+          "Rejection email with admin comments sent to user email after admin rejects onboarding",
+          "Emails rendered using FreeMarker templates (email-template-pending-approval.ftl, email-template-approved.ftl, email-template-rejected.ftl)",
+          "Emails sent via Gmail SMTP (smtp.gmail.com:465) with SSL",
+          "Email send failures throw CustomException with code 451 but do not roll back user registration"
+        ],
+        "assumptions_or_unknowns": [
+          "Email template content not analyzed; assume templates exist and are correctly formatted"
+        ]
+      },
+      {
+        "req_id": "REQ-INT-001",
+        "title": "OneView API Integration for Performance Data",
+        "description": "The system shall integrate with external OneView API to fetch project performance metrics and RAG (Red-Amber-Green) status data via GET /performance endpoint. The system shall authenticate with OneView API using custom token-based authentication (X-Ava-Access-Token header).",
+        "type": "integration",
         "priority": "should",
         "module_ids": ["mod_external_integration"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "entry_points[PerformaceController].endpoints[GET /performance]"},
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[OneView API]"}
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[0] (OneView API)"},
+          {"artifact": "repository_summary.json", "pointer": "service_layer (OneViewService)"}
         ],
         "acceptance_criteria": [
-          "User submits performance data request via GET /performance endpoint",
-          "System authenticates with OneView API using custom token-based mechanism",
-          "System retrieves performance data from OneView API",
-          "System returns HTTP 200 OK with performance data",
+          "GET /performance endpoint retrieves performance data from OneView API",
+          "System authenticates with OneView API via POST /user/signin with username and password",
+          "System obtains X-Ava-Access-Token from login response and includes it in subsequent requests",
+          "System fetches RAG list via GET /ava/oneview/internal/api/dashboard/rag/list with query params",
+          "System returns performance data in PerformanceResponse format",
           "System falls back to previous day's data if current day returns empty list"
         ],
         "assumptions_or_unknowns": [
-          "OneView API integration process not included as primary business process (external data retrieval, not core user management workflow)"
+          "OneView API contract details inferred from implementation code; no API specification available",
+          "Hardcoded credentials in OneViewServiceImpl flagged as critical security risk"
         ]
       },
       {
-        "req_id": "REQ-FUNC-015",
-        "title": "Health Check Endpoint",
-        "description": "The system shall provide a health check endpoint at GET /healthcheck for Kubernetes liveness and readiness probes.",
-        "type": "functional",
+        "req_id": "REQ-DATA-001",
+        "title": "User Data Persistence",
+        "description": "The system shall persist user entities in MySQL database (users table) with fields: userId (PK, auto-increment), email (unique, required), password (BCrypt hashed), firstname, lastname, company (required), country, role (CUSTOMER | ADMIN), onboardingStatus (pending_approval | approved | reject), isActive (boolean), registrationId, designation, clientId, clientName, clientOneView, createdAt, lastUpdatedAt, lastUpdatedBy.",
+        "type": "data",
         "priority": "must",
-        "module_ids": ["mod_observability"],
+        "module_ids": ["mod_user_management"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "entry_points[Healthcheck].endpoints[GET /healthcheck]"}
+          {"artifact": "data_model.json", "pointer": "logical_models[0] (UserEntity)"},
+          {"artifact": "repository_summary.json", "pointer": "database_schema (users table)"}
         ],
         "acceptance_criteria": [
-          "System responds to GET /healthcheck with HTTP 200 OK if application is healthy",
-          "Health check endpoint is accessible without authentication"
+          "users table created with specified fields and constraints",
+          "email field has unique constraint",
+          "password field stores BCrypt hashed values",
+          "userId is auto-incremented primary key",
+          "createdAt and lastUpdatedAt timestamps auto-generated"
         ],
-        "assumptions_or_unknowns": []
+        "assumptions_or_unknowns": [
+          "Database schema evolution relies on JPA auto-DDL; no migration scripts detected"
+        ]
       },
       {
-        "req_id": "REQ-NFR-001",
-        "title": "JWT Token Validity",
-        "description": "Access tokens shall have a validity period of 30 minutes (1800000 milliseconds). Refresh tokens shall have a validity period of 24 hours (86400000 milliseconds).",
-        "type": "non_functional",
-        "priority": "must",
-        "module_ids": ["mod_authentication_authorization"],
-        "process_refs": ["proc_user_login", "proc_token_refresh"],
-        "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary.patterns[JWT-based Authentication with Access and Refresh Tokens].evidence"}
-        ],
-        "acceptance_criteria": [
-          "Access tokens expire after 30 minutes",
-          "Refresh tokens expire after 24 hours",
-          "Expired tokens cannot be used for authentication or token refresh"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-NFR-002",
-        "title": "Password Hashing",
-        "description": "User passwords shall be hashed using BCrypt algorithm before storage. Plain text passwords shall never be stored or logged.",
-        "type": "non_functional",
-        "priority": "must",
-        "module_ids": ["mod_authentication_authorization"],
-        "process_refs": ["proc_user_registration", "proc_user_login"],
-        "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "sensitive_data_identification.data_items[Authentication Credentials - Passwords]"}
-        ],
-        "acceptance_criteria": [
-          "Passwords are hashed with BCrypt before storage",
-          "Plain text passwords are not stored in database",
-          "Plain text passwords are not logged in application logs"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-NFR-003",
-        "title": "Role-Based Access Control",
-        "description": "Admin endpoints (/api/v1/admin/**) shall require ADMIN role. JWT token filter shall validate role claims before allowing access.",
-        "type": "non_functional",
+        "req_id": "REQ-DATA-002",
+        "title": "Token Data Persistence",
+        "description": "The system shall persist access tokens and refresh tokens in MySQL database (access_token and refresh_token tables) with fields: id (PK, auto-increment), token (TEXT), tokenType (BEARER), expired (boolean), revoked (boolean), createdAt (auto-generated), user (FK to users.userId).",
+        "type": "data",
         "priority": "must",
         "module_ids": ["mod_authentication_authorization"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary.patterns[Role-Based Access Control (RBAC)]"}
+          {"artifact": "data_model.json", "pointer": "logical_models[1,2] (AccessToken, RefreshToken)"},
+          {"artifact": "repository_summary.json", "pointer": "database_schema (access_token, refresh_token tables)"}
         ],
         "acceptance_criteria": [
-          "Admin endpoints reject requests without valid JWT token",
-          "Admin endpoints reject requests with CUSTOMER role",
-          "Admin endpoints allow requests with ADMIN role"
+          "access_token and refresh_token tables created with specified fields and constraints",
+          "token field stores JWT token strings (TEXT type)",
+          "user field is foreign key to users.userId",
+          "id is auto-incremented primary key",
+          "createdAt timestamp auto-generated"
         ],
         "assumptions_or_unknowns": []
       },
       {
-        "req_id": "REQ-NFR-004",
-        "title": "Kubernetes Deployment",
-        "description": "The system shall be deployed on AWS EKS with 2 replicas, resource limits (CPU: 250m, Memory: 1024Mi), and ClusterIP service on port 80.",
-        "type": "non_functional",
+        "req_id": "REQ-DATA-003",
+        "title": "Audit Log Data Persistence",
+        "description": "The system shall persist audit log entries in MySQL database (action_history table) with fields: id (PK, auto-increment), userName, userEmail, userRole, userCompany, updateByAdminName, updateByAdminEmail, registrationId, action, adminComments, actionType (OnBoarding Status | Account Status | Role Status), createdAt (auto-generated), updatedAt.",
+        "type": "data",
         "priority": "must",
-        "module_ids": ["mod_deployment_infrastructure"],
+        "module_ids": ["mod_audit_compliance"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "kubernetes_configuration"}
+          {"artifact": "data_model.json", "pointer": "logical_models[3] (ActionHistory)"},
+          {"artifact": "repository_summary.json", "pointer": "database_schema (action_history table)"}
         ],
         "acceptance_criteria": [
-          "Kubernetes deployment creates 2 replicas",
-          "Each replica has resource requests (CPU: 250m, Memory: 512Mi) and limits (CPU: 250m, Memory: 1024Mi)",
-          "Kubernetes service exposes port 80 with ClusterIP type"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-NFR-005",
-        "title": "Prometheus Metrics",
-        "description": "The system shall expose Prometheus metrics via Spring Actuator at /actuator/prometheus endpoint. Kubernetes deployment shall include Prometheus scrape annotations.",
-        "type": "non_functional",
-        "priority": "must",
-        "module_ids": ["mod_observability"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[Prometheus]"}
-        ],
-        "acceptance_criteria": [
-          "System exposes /actuator/prometheus endpoint",
-          "Prometheus metrics include application metrics, JVM metrics, and Spring Boot metrics",
-          "Kubernetes deployment includes Prometheus scrape annotations on port 8090"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-NFR-006",
-        "title": "Reactive Programming",
-        "description": "The system shall use Spring WebFlux for reactive, non-blocking I/O. Reactive custom DAO (CustomerDaoImpl) shall be used for database queries where applicable.",
-        "type": "non_functional",
-        "priority": "should",
-        "module_ids": ["mod_data_persistence"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "application_type (Reactive Web Service)"}
-        ],
-        "acceptance_criteria": [
-          "System uses Spring WebFlux for REST endpoints",
-          "System uses Mono and Flux for reactive data streams",
-          "CustomerDaoImpl provides reactive database queries"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-NFR-007",
-        "title": "CI/CD Pipeline",
-        "description": "The system shall have an automated CI/CD pipeline via AWS CodeBuild with phases: install (Maven), pre_build (ECR login, kubectl install, EKS cluster config), build (mvn clean install, Docker build/tag), post_build (Docker push to ECR, kubectl apply, rollout restart).",
-        "type": "non_functional",
-        "priority": "must",
-        "module_ids": ["mod_deployment_infrastructure"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "ci_cd_pipeline"}
-        ],
-        "acceptance_criteria": [
-          "CI/CD pipeline installs Maven in install phase",
-          "CI/CD pipeline logs into ECR and configures EKS cluster in pre_build phase",
-          "CI/CD pipeline builds Maven project and Docker image in build phase",
-          "CI/CD pipeline pushes Docker image to ECR and deploys to EKS in post_build phase",
-          "CI/CD pipeline performs rollout restart if deployment exists"
+          "action_history table created with specified fields",
+          "id is auto-incremented primary key",
+          "createdAt timestamp auto-generated",
+          "actionType values restricted to: OnBoarding Status, Account Status, Role Status"
         ],
         "assumptions_or_unknowns": []
       },
       {
         "req_id": "REQ-SEC-001",
-        "title": "Externalize Hardcoded Credentials",
-        "description": "The system shall externalize all hardcoded credentials (OneView API, database, SMTP) from source code and configuration files to environment variables or AWS Secrets Manager.",
+        "title": "Secure Credential Storage",
+        "description": "The system shall store all credentials (database, SMTP, JWT secrets, external API credentials) securely using environment variables or AWS Secrets Manager. Credentials shall not be hardcoded in source code or configuration files.",
         "type": "security",
         "priority": "must",
-        "module_ids": ["mod_external_integration", "mod_data_persistence", "mod_notification"],
+        "module_ids": ["mod_authentication_authorization", "mod_email_notifications", "mod_external_integration"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells[Hardcoded Credentials, Credentials in Configuration Files]"}
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (Hardcoded Credentials, Credentials in Configuration Files)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations[0,1]"}
         ],
         "acceptance_criteria": [
-          "OneView API credentials removed from OneViewServiceImpl.java source code",
-          "Database and SMTP credentials removed from application-dev.properties",
-          "Credentials stored in environment variables or AWS Secrets Manager",
-          "Application retrieves credentials from secure storage at runtime"
+          "Database credentials (username, password) stored in environment variables or AWS Secrets Manager",
+          "SMTP credentials (username, password) stored in environment variables or AWS Secrets Manager",
+          "JWT secret key stored in environment variables or AWS Secrets Manager",
+          "OneView API credentials (username, password) stored in environment variables or AWS Secrets Manager",
+          "No credentials hardcoded in source code or configuration files"
         ],
-        "assumptions_or_unknowns": []
+        "assumptions_or_unknowns": [
+          "Current implementation has hardcoded credentials in OneViewServiceImpl and application-dev.properties; must be refactored"
+        ]
       },
       {
         "req_id": "REQ-SEC-002",
-        "title": "Enable SSL/TLS for Database Connection",
+        "title": "SSL/TLS for Database Connection",
         "description": "The system shall enable SSL/TLS encryption for MySQL database connections by adding SSL parameters to JDBC URL.",
         "type": "security",
         "priority": "must",
-        "module_ids": ["mod_data_persistence"],
+        "module_ids": ["mod_user_management", "mod_authentication_authorization", "mod_audit_compliance"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells[Missing SSL/TLS for Database Connection]"}
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (Missing SSL/TLS for Database Connection)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations[2]"}
         ],
         "acceptance_criteria": [
           "JDBC URL includes SSL parameters (e.g., useSSL=true, requireSSL=true)",
-          "Database traffic is encrypted with SSL/TLS"
+          "Database traffic encrypted with SSL/TLS"
         ],
-        "assumptions_or_unknowns": []
+        "assumptions_or_unknowns": [
+          "Current implementation does not explicitly configure SSL/TLS for database connection"
+        ]
       },
       {
         "req_id": "REQ-SEC-003",
-        "title": "Implement Rate Limiting",
+        "title": "Rate Limiting for Authentication Endpoints",
         "description": "The system shall implement rate limiting on authentication endpoints (/login, /register) to prevent brute force attacks, credential stuffing, and denial of service.",
         "type": "security",
         "priority": "must",
-        "module_ids": ["mod_authentication_authorization"],
+        "module_ids": ["mod_authentication_authorization", "mod_user_management"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells[No Rate Limiting]"}
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (No Rate Limiting)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations[3]"}
         ],
         "acceptance_criteria": [
-          "System limits number of login attempts per IP address per time window",
-          "System limits number of registration attempts per IP address per time window",
-          "System returns HTTP 429 Too Many Requests when rate limit exceeded"
+          "Rate limiting applied to POST /login endpoint (e.g., max 5 attempts per minute per IP)",
+          "Rate limiting applied to POST /register endpoint (e.g., max 3 registrations per hour per IP)",
+          "System returns 429 Too Many Requests when rate limit exceeded"
         ],
         "assumptions_or_unknowns": [
-          "Rate limiting may be implemented at API gateway level (not visible in application code)"
+          "Rate limiting may be implemented at API gateway level or application level; implementation approach to be determined"
         ]
       },
       {
         "req_id": "REQ-SEC-004",
-        "title": "Implement Account Lockout",
+        "title": "Account Lockout Mechanism",
         "description": "The system shall implement account lockout mechanism after multiple failed login attempts to prevent brute force attacks.",
         "type": "security",
         "priority": "must",
         "module_ids": ["mod_authentication_authorization"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells[No Account Lockout]"}
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (No Account Lockout)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations[4]"}
         ],
         "acceptance_criteria": [
           "System tracks failed login attempts per user account",
-          "System locks account after N failed login attempts (e.g., 5)",
-          "System unlocks account after time period (e.g., 30 minutes) or admin intervention",
-          "System notifies user of account lockout via email"
+          "Account locked after N failed attempts (e.g., 5 attempts)",
+          "Locked account cannot authenticate until unlocked by admin or after timeout period",
+          "System logs failed login attempts for security monitoring"
         ],
-        "assumptions_or_unknowns": []
+        "assumptions_or_unknowns": [
+          "Lockout threshold and timeout duration to be determined"
+        ]
       },
       {
         "req_id": "REQ-SEC-005",
-        "title": "Implement Audit Logging for Authentication Events",
-        "description": "The system shall log all authentication events (successful and failed logins) for security monitoring and incident response.",
+        "title": "Audit Logging for Authentication Events",
+        "description": "The system shall log all authentication events (successful and failed logins, token refresh, token revocation) for security monitoring and incident response.",
         "type": "security",
         "priority": "should",
-        "module_ids": ["mod_audit_compliance"],
+        "module_ids": ["mod_authentication_authorization"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells[No Audit Logging for Authentication Events]"}
+          {"artifact": "security_privacy_assessment.json", "pointer": "security_smells (No Audit Logging for Authentication Events)"},
+          {"artifact": "security_privacy_assessment.json", "pointer": "data_handling_recommendations[5]"}
         ],
         "acceptance_criteria": [
-          "System logs successful login events with timestamp, user email, and IP address",
-          "System logs failed login events with timestamp, attempted email, and IP address",
-          "Logs are stored in centralized logging system for analysis"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-INT-001",
-        "title": "OneView API Integration",
-        "description": "The system shall integrate with external OneView API to fetch project performance metrics and RAG status data using custom token-based authentication.",
-        "type": "integration",
-        "priority": "should",
-        "module_ids": ["mod_external_integration"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[OneView API]"}
-        ],
-        "acceptance_criteria": [
-          "System authenticates with OneView API using POST /user/signin with username/password",
-          "System retrieves X-Ava-Access-Token header from login response",
-          "System uses X-Ava-Access-Token header for subsequent API calls",
-          "System retrieves performance data via GET /ava/oneview/internal/api/dashboard/rag/list",
-          "System falls back to previous day's data if current day returns empty list"
+          "Successful login events logged with user email, timestamp, IP address",
+          "Failed login events logged with attempted email, timestamp, IP address, failure reason",
+          "Token refresh events logged with user email, timestamp",
+          "Token revocation events logged with user email, timestamp, token type"
         ],
         "assumptions_or_unknowns": [
-          "OneView API contract details inferred from implementation code; no API specification available"
+          "Log storage and retention policy to be determined"
         ]
-      },
-      {
-        "req_id": "REQ-INT-002",
-        "title": "Gmail SMTP Integration",
-        "description": "The system shall integrate with Gmail SMTP to send email notifications using FreeMarker templates.",
-        "type": "integration",
-        "priority": "must",
-        "module_ids": ["mod_notification"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[Gmail SMTP]"}
-        ],
-        "acceptance_criteria": [
-          "System connects to Gmail SMTP server (smtp.gmail.com:465) with SSL",
-          "System authenticates with Gmail SMTP using username and app password",
-          "System sends email notifications using FreeMarker templates",
-          "System logs error and throws CustomException on email send failure"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-INT-003",
-        "title": "Netflix Eureka Integration",
-        "description": "The system shall register with Netflix Eureka for service discovery and send heartbeat updates.",
-        "type": "integration",
-        "priority": "should",
-        "module_ids": ["mod_deployment_infrastructure"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[Netflix Eureka]"}
-        ],
-        "acceptance_criteria": [
-          "System registers with Eureka server on startup",
-          "System sends heartbeat updates to Eureka server",
-          "System updates registration metadata (instance ID, hostname, preferIpAddress)"
-        ],
-        "assumptions_or_unknowns": [
-          "Eureka authentication mechanism not visible in application code; may be handled by infrastructure"
-        ]
-      },
-      {
-        "req_id": "REQ-INT-004",
-        "title": "Prometheus Integration",
-        "description": "The system shall expose Prometheus metrics endpoint for scraping by Prometheus server.",
-        "type": "integration",
-        "priority": "must",
-        "module_ids": ["mod_observability"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[Prometheus]"}
-        ],
-        "acceptance_criteria": [
-          "System exposes /actuator/prometheus endpoint",
-          "Prometheus server scrapes metrics from /actuator/prometheus endpoint",
-          "Metrics include application metrics, JVM metrics, and Spring Boot metrics"
-        ],
-        "assumptions_or_unknowns": [
-          "Prometheus scrape authentication not visible; may be unauthenticated or handled by Kubernetes network policies"
-        ]
-      },
-      {
-        "req_id": "REQ-DATA-001",
-        "title": "User Entity Persistence",
-        "description": "The system shall persist user entities to the users table in MySQL database with fields: userId (PK), email (unique), password (BCrypt hashed), firstname, lastname, company, country, role, onboardingStatus, isActive, registrationId, designation, clientId, clientName, clientOneView, createdAt, lastUpdatedAt, lastUpdatedBy.",
-        "type": "data",
-        "priority": "must",
-        "module_ids": ["mod_data_persistence"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "data_model.json", "pointer": "logical_models.models[UserEntity]"}
-        ],
-        "acceptance_criteria": [
-          "UserEntity is persisted to users table",
-          "Email field is unique",
-          "Password field stores BCrypt hash",
-          "All required fields are populated"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-DATA-002",
-        "title": "Access Token Persistence",
-        "description": "The system shall persist access tokens to the access_token table in MySQL database with fields: id (PK), token (TEXT), tokenType (BEARER), expired (Boolean), revoked (Boolean), createdAt (auto-generated), user (FK to users.user_id).",
-        "type": "data",
-        "priority": "must",
-        "module_ids": ["mod_data_persistence"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "data_model.json", "pointer": "logical_models.models[AccessToken]"}
-        ],
-        "acceptance_criteria": [
-          "AccessToken is persisted to access_token table",
-          "Token field stores JWT token as TEXT",
-          "Foreign key relationship to users table is enforced"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-DATA-003",
-        "title": "Refresh Token Persistence",
-        "description": "The system shall persist refresh tokens to the refresh_token table in MySQL database with fields: id (PK), token (TEXT), tokenType (BEARER), expired (Boolean), revoked (Boolean), createdAt (auto-generated), user (FK to users.user_id).",
-        "type": "data",
-        "priority": "must",
-        "module_ids": ["mod_data_persistence"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "data_model.json", "pointer": "logical_models.models[RefreshToken]"}
-        ],
-        "acceptance_criteria": [
-          "RefreshToken is persisted to refresh_token table",
-          "Token field stores JWT token as TEXT",
-          "Foreign key relationship to users table is enforced"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-DATA-004",
-        "title": "Action History Persistence",
-        "description": "The system shall persist action history entries to the action_history table in MySQL database with fields: id (PK), userName, userEmail, userRole, userCompany, updateByAdminName, updateByAdminEmail, registrationId, action, adminComments, actionType, createdAt (auto-generated), updatedAt.",
-        "type": "data",
-        "priority": "must",
-        "module_ids": ["mod_data_persistence"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "data_model.json", "pointer": "logical_models.models[ActionHistory]"}
-        ],
-        "acceptance_criteria": [
-          "ActionHistory is persisted to action_history table",
-          "All required fields are populated",
-          "createdAt is auto-generated on insert"
-        ],
-        "assumptions_or_unknowns": []
       },
       {
         "req_id": "REQ-OPS-001",
-        "title": "Docker Containerization",
-        "description": "The system shall be containerized using Docker with amazoncorretto:17 base image and expose port 8090.",
+        "title": "Health Check Endpoint",
+        "description": "The system shall provide a health check endpoint (GET /healthcheck) for monitoring application availability and readiness.",
         "type": "operational",
         "priority": "must",
-        "module_ids": ["mod_deployment_infrastructure"],
+        "module_ids": ["mod_infrastructure_observability"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "deployment.containerization"}
+          {"artifact": "repository_summary.json", "pointer": "entry_points[4] (Healthcheck controller)"}
         ],
         "acceptance_criteria": [
-          "Dockerfile uses amazoncorretto:17 as base image",
-          "Dockerfile exposes port 8090",
-          "Docker image includes cove-user-service-0.0.1-SNAPSHOT.jar artifact"
+          "GET /healthcheck endpoint returns 200 OK when application is healthy",
+          "Endpoint accessible without authentication"
         ],
         "assumptions_or_unknowns": []
       },
       {
         "req_id": "REQ-OPS-002",
-        "title": "AWS ECR Image Storage",
-        "description": "The system shall store Docker images in AWS ECR for retrieval by AWS EKS.",
+        "title": "Prometheus Metrics Exposure",
+        "description": "The system shall expose Prometheus metrics via Spring Actuator endpoint (/actuator/prometheus) for monitoring application health, JVM metrics, and custom metrics.",
         "type": "operational",
         "priority": "must",
-        "module_ids": ["mod_deployment_infrastructure"],
+        "module_ids": ["mod_infrastructure_observability"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[AWS ECR]"}
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[4] (Prometheus)"},
+          {"artifact": "repository_summary.json", "pointer": "configuration (actuator_endpoints)"}
         ],
         "acceptance_criteria": [
-          "CI/CD pipeline pushes Docker image to AWS ECR",
-          "AWS EKS pulls Docker image from AWS ECR for deployment"
+          "/actuator/prometheus endpoint returns metrics in Prometheus text format",
+          "Metrics include application metrics, JVM metrics, Spring Boot metrics",
+          "Kubernetes deployment includes Prometheus scrape annotations on port 8090"
         ],
         "assumptions_or_unknowns": []
       },
       {
         "req_id": "REQ-OPS-003",
-        "title": "AWS EKS Deployment",
-        "description": "The system shall be deployed on AWS EKS using Kubernetes manifests (deployment.yaml, service.yaml).",
+        "title": "Service Discovery via Netflix Eureka",
+        "description": "The system shall register with Netflix Eureka service discovery for dynamic service registration and discovery in microservices ecosystem.",
         "type": "operational",
-        "priority": "must",
-        "module_ids": ["mod_deployment_infrastructure"],
+        "priority": "should",
+        "module_ids": ["mod_infrastructure_observability"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments.enrichments[AWS EKS]"}
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[3] (Netflix Eureka)"},
+          {"artifact": "repository_summary.json", "pointer": "configuration (eureka_service_url)"}
         ],
         "acceptance_criteria": [
-          "CI/CD pipeline applies Kubernetes manifests to AWS EKS cluster",
-          "Kubernetes deployment creates pods with specified replicas and resource limits",
-          "Kubernetes service exposes pods via ClusterIP on port 80"
+          "Application registers with Eureka server on startup",
+          "Application sends heartbeat to Eureka server",
+          "Application deregisters from Eureka server on shutdown"
+        ],
+        "assumptions_or_unknowns": []
+      },
+      {
+        "req_id": "REQ-OPS-004",
+        "title": "Kubernetes Deployment with Auto-Scaling",
+        "description": "The system shall be deployed on AWS EKS with Kubernetes deployment manifest specifying 2 replicas, resource limits (CPU: 250m, Memory: 1024Mi), and ClusterIP service on port 80.",
+        "type": "operational",
+        "priority": "must",
+        "module_ids": ["mod_infrastructure_observability"],
+        "process_refs": [],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "kubernetes_configuration"},
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[6] (AWS EKS)"}
+        ],
+        "acceptance_criteria": [
+          "Kubernetes Deployment resource created with 2 replicas",
+          "Resource requests: CPU 250m, Memory 512Mi",
+          "Resource limits: CPU 250m, Memory 1024Mi",
+          "ClusterIP service exposes port 80 (maps to container port 8090)",
+          "Prometheus scrape annotations included in deployment manifest"
+        ],
+        "assumptions_or_unknowns": []
+      },
+      {
+        "req_id": "REQ-OPS-005",
+        "title": "Automated CI/CD Pipeline",
+        "description": "The system shall have an automated CI/CD pipeline via AWS CodeBuild that builds Docker image, pushes to AWS ECR, and deploys to AWS EKS with zero-downtime rollout.",
+        "type": "operational",
+        "priority": "must",
+        "module_ids": ["mod_infrastructure_observability"],
+        "process_refs": [],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "ci_cd_pipeline"},
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[5,6] (AWS ECR, AWS EKS)"}
+        ],
+        "acceptance_criteria": [
+          "AWS CodeBuild pipeline triggered on code commit",
+          "Pipeline phases: install (Maven), pre_build (ECR login, kubectl config), build (mvn clean install, Docker build/tag), post_build (Docker push, kubectl apply, rollout restart)",
+          "Docker image pushed to AWS ECR",
+          "Kubernetes manifests applied to EKS cluster",
+          "Rollout restart ensures zero-downtime deployment"
+        ],
+        "assumptions_or_unknowns": []
+      },
+      {
+        "req_id": "REQ-NFR-001",
+        "title": "Reactive Programming for Scalability",
+        "description": "The system shall use Spring WebFlux reactive programming model for non-blocking I/O to support high concurrency and scalability.",
+        "type": "non_functional",
+        "priority": "must",
+        "module_ids": ["mod_user_management", "mod_authentication_authorization"],
+        "process_refs": [],
+        "traceability": [
+          {"artifact": "repository_summary.json", "pointer": "application_type (Reactive Web Service)"},
+          {"artifact": "architecture_summary.json", "pointer": "logical_architecture.notable_patterns (Reactive Programming)"}
+        ],
+        "acceptance_criteria": [
+          "Application uses Spring WebFlux with Mono and Flux for reactive streams",
+          "Reactive custom DAO (CustomerDaoImpl) for database queries",
+          "Non-blocking I/O for external integrations (OneView API, Gmail SMTP)"
+        ],
+        "assumptions_or_unknowns": []
+      },
+      {
+        "req_id": "REQ-NFR-002",
+        "title": "Stateless Authentication for Horizontal Scaling",
+        "description": "The system shall use stateless JWT authentication to enable horizontal scaling without session affinity requirements.",
+        "type": "non_functional",
+        "priority": "must",
+        "module_ids": ["mod_authentication_authorization"],
+        "process_refs": [],
+        "traceability": [
+          {"artifact": "security_privacy_assessment.json", "pointer": "authorization_model_summary (JWT-based Authentication)"},
+          {"artifact": "repository_summary.json", "pointer": "security_configuration (security_context: NoOpServerSecurityContextRepository)"}
+        ],
+        "acceptance_criteria": [
+          "JWT tokens contain all necessary authentication and authorization information",
+          "No server-side session state maintained",
+          "Tokens validated independently on each request",
+          "Application can scale horizontally without session replication"
         ],
         "assumptions_or_unknowns": []
       },
       {
         "req_id": "REQ-CONSTRAINT-001",
-        "title": "Java Version",
-        "description": "The system shall be built and run on Java 17.",
+        "title": "Java 17 and Spring Boot 3.2.5 Technology Stack",
+        "description": "The system shall be built using Java 17, Spring Boot 3.2.5, Spring WebFlux, Spring Security, Spring Data JPA, and MySQL 8.0.33.",
         "type": "constraint",
         "priority": "must",
-        "module_ids": [],
+        "module_ids": ["mod_user_management", "mod_authentication_authorization", "mod_audit_compliance", "mod_email_notifications", "mod_external_integration", "mod_infrastructure_observability"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "java_version"}
+          {"artifact": "repository_summary.json", "pointer": "java_version, framework, technology_stack"}
         ],
         "acceptance_criteria": [
-          "System is compiled with Java 17",
-          "System runs on Java 17 runtime"
+          "Application built with Java 17",
+          "Spring Boot version 3.2.5",
+          "Spring WebFlux for reactive web",
+          "Spring Security for authentication and authorization",
+          "Spring Data JPA for database access",
+          "MySQL 8.0.33 for database"
         ],
         "assumptions_or_unknowns": []
       },
       {
         "req_id": "REQ-CONSTRAINT-002",
-        "title": "Spring Boot Version",
-        "description": "The system shall use Spring Boot 3.2.5.",
+        "title": "AWS Cloud Infrastructure",
+        "description": "The system shall be deployed on AWS cloud infrastructure using AWS EKS for container orchestration, AWS RDS for MySQL database, AWS ECR for Docker image registry, and AWS CodeBuild for CI/CD.",
         "type": "constraint",
         "priority": "must",
-        "module_ids": [],
+        "module_ids": ["mod_infrastructure_observability"],
         "process_refs": [],
         "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "framework"}
+          {"artifact": "repository_summary.json", "pointer": "deployment (orchestration: Kubernetes (AWS EKS), ci_cd: AWS CodeBuild)"},
+          {"artifact": "integration_catalog.json", "pointer": "touchpoint_enrichments[1,5,6] (AWS RDS MySQL, AWS ECR, AWS EKS)"}
         ],
         "acceptance_criteria": [
-          "System uses Spring Boot 3.2.5 parent POM",
-          "All Spring Boot dependencies are compatible with 3.2.5"
-        ],
-        "assumptions_or_unknowns": []
-      },
-      {
-        "req_id": "REQ-CONSTRAINT-003",
-        "title": "MySQL Version",
-        "description": "The system shall use MySQL 8.0.33 for data persistence.",
-        "type": "constraint",
-        "priority": "must",
-        "module_ids": ["mod_data_persistence"],
-        "process_refs": [],
-        "traceability": [
-          {"artifact": "repository_summary.json", "pointer": "technology_stack.database"}
-        ],
-        "acceptance_criteria": [
-          "System connects to MySQL 8.0.33 database",
-          "JDBC driver is compatible with MySQL 8.0.33"
+          "Application deployed on AWS EKS",
+          "MySQL database hosted on AWS RDS",
+          "Docker images stored in AWS ECR",
+          "CI/CD pipeline runs on AWS CodeBuild"
         ],
         "assumptions_or_unknowns": []
       }
@@ -1072,50 +886,48 @@
       {
         "theme_id": "theme_user_lifecycle",
         "name": "User Lifecycle Management",
-        "req_ids": ["REQ-FUNC-001", "REQ-FUNC-002", "REQ-FUNC-003", "REQ-FUNC-004", "REQ-FUNC-005", "REQ-FUNC-006", "REQ-FUNC-007", "REQ-FUNC-008", "REQ-FUNC-009", "REQ-FUNC-010", "REQ-FUNC-011"]
+        "req_ids": ["REQ-USR-001", "REQ-USR-002", "REQ-ADM-001", "REQ-ADM-002", "REQ-ADM-003", "REQ-ADM-004", "REQ-EMAIL-001"]
+      },
+      {
+        "theme_id": "theme_authentication_security",
+        "name": "Authentication & Security",
+        "req_ids": ["REQ-AUTH-001", "REQ-AUTH-002", "REQ-AUTH-003", "REQ-AUTH-004", "REQ-SEC-001", "REQ-SEC-002", "REQ-SEC-003", "REQ-SEC-004", "REQ-SEC-005"]
       },
       {
         "theme_id": "theme_audit_compliance",
         "name": "Audit & Compliance",
-        "req_ids": ["REQ-FUNC-012", "REQ-FUNC-013", "REQ-SEC-005"]
-      },
-      {
-        "theme_id": "theme_external_integration",
-        "name": "External System Integration",
-        "req_ids": ["REQ-FUNC-014", "REQ-INT-001", "REQ-INT-002", "REQ-INT-003", "REQ-INT-004"]
-      },
-      {
-        "theme_id": "theme_security",
-        "name": "Security Hardening",
-        "req_ids": ["REQ-SEC-001", "REQ-SEC-002", "REQ-SEC-003", "REQ-SEC-004", "REQ-NFR-002", "REQ-NFR-003"]
-      },
-      {
-        "theme_id": "theme_observability",
-        "name": "Observability & Monitoring",
-        "req_ids": ["REQ-FUNC-015", "REQ-NFR-005"]
-      },
-      {
-        "theme_id": "theme_deployment",
-        "name": "Deployment & Infrastructure",
-        "req_ids": ["REQ-NFR-004", "REQ-NFR-007", "REQ-OPS-001", "REQ-OPS-002", "REQ-OPS-003"]
+        "req_ids": ["REQ-AUD-001", "REQ-AUD-002"]
       },
       {
         "theme_id": "theme_data_persistence",
         "name": "Data Persistence",
-        "req_ids": ["REQ-DATA-001", "REQ-DATA-002", "REQ-DATA-003", "REQ-DATA-004", "REQ-NFR-006"]
+        "req_ids": ["REQ-DATA-001", "REQ-DATA-002", "REQ-DATA-003"]
+      },
+      {
+        "theme_id": "theme_external_integration",
+        "name": "External Integration",
+        "req_ids": ["REQ-INT-001"]
+      },
+      {
+        "theme_id": "theme_operations_infrastructure",
+        "name": "Operations & Infrastructure",
+        "req_ids": ["REQ-OPS-001", "REQ-OPS-002", "REQ-OPS-003", "REQ-OPS-004", "REQ-OPS-005", "REQ-NFR-001", "REQ-NFR-002"]
+      },
+      {
+        "theme_id": "theme_technology_constraints",
+        "name": "Technology Constraints",
+        "req_ids": ["REQ-CONSTRAINT-001", "REQ-CONSTRAINT-002"]
       }
     ]
   },
   "forward_pipeline_hints": {
     "review_order": [
-      "mod_data_persistence",
-      "mod_authentication_authorization",
       "mod_user_management",
+      "mod_authentication_authorization",
       "mod_audit_compliance",
-      "mod_notification",
+      "mod_email_notifications",
       "mod_external_integration",
-      "mod_observability",
-      "mod_deployment_infrastructure"
+      "mod_infrastructure_observability"
     ],
     "non_goals": [
       "Password reset or forgot password functionality",
@@ -1123,34 +935,28 @@
       "API documentation (Swagger/OpenAPI)",
       "Database migration tooling (Flyway/Liquibase)",
       "Caching layer (Redis)",
-      "Application-level rate limiting"
+      "Application-level rate limiting (may be implemented at API gateway level)"
     ],
     "open_questions": [
-      "Should password reset functionality be added to the roadmap?",
-      "Should MFA be implemented for all users or only admin accounts?",
-      "Should API documentation (Swagger/OpenAPI) be generated automatically?",
-      "Should database migration tooling (Flyway/Liquibase) be introduced for schema versioning?",
-      "Should a caching layer (Redis) be added for token storage or performance data?",
       "Should rate limiting be implemented at application level or API gateway level?",
-      "What is the business purpose of client-related fields (clientId, clientName, clientOneView) in UserEntity?",
-      "What is the registration ID generation and usage pattern?"
+      "What is the desired account lockout threshold and timeout duration?",
+      "What is the desired log retention policy for authentication events and audit logs?",
+      "Should JWT tokens be encrypted at rest in database?",
+      "What is the desired data retention and deletion policy for user data and audit logs (GDPR compliance)?",
+      "Should MFA be implemented in a future phase?",
+      "Should password reset functionality be implemented in a future phase?"
     ]
   },
   "analysis_metadata": {
     "limits_or_unknowns": [
-      "tech_debt_risk.json artifact not found; no tech debt analysis included",
-      "review_resolution.json artifact not found; no PR review feedback incorporated",
-      "Token refresh implementation details partially inferred; detailed code for JwtRefreshTokenUtil.generateNewRefreshToken not read",
-      "Token revocation logic details inferred from login flow; explicit revocation endpoint behavior not fully traced",
       "Email template content not analyzed; only service-level email sending logic reviewed",
-      "OneView API integration process not included as primary business process (external data retrieval, not core user management workflow)",
-      "Admin user listing and action history retrieval processes not included (read-only queries, not state-changing workflows)",
-      "Healthcheck endpoint not included as business process (infrastructure monitoring, not business workflow)",
-      "Database schema relationships inferred from JPA annotations; no database migration scripts or ER diagrams available",
+      "OneView API contract details inferred from implementation code; no API specification available",
       "Timeout and retry configurations not explicitly set in application code; rely on library defaults",
+      "Database schema relationships inferred from JPA annotations; no database migration scripts or ER diagrams available",
       "Security controls for infrastructure services (Eureka, Prometheus, ECR, EKS) not visible in application code; may be handled at infrastructure level",
-      "Client-related fields (clientId, clientName, clientOneView) in UserEntity have unclear business purpose; insufficient evidence to determine their role",
-      "Registration ID generation and usage pattern not fully documented in code"
+      "Rate limiting may be implemented at API gateway level (not visible in application code)",
+      "MFA implementation may be planned but not yet implemented",
+      "CORS configuration details not fully visible; marked as low confidence in security assessment"
     ],
     "conflicts_detected": []
   }
