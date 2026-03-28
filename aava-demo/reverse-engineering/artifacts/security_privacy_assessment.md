@@ -1,8 +1,8 @@
-# Security and Privacy Assessment: ramanohar/AAVA-Reverse-Engineering-POC
+# Security and Privacy Assessment
 
-**Generated:** 2025-01-16T12:00:00Z  
 **Repository:** ramanohar/AAVA-Reverse-Engineering-POC  
 **Branch:** main  
+**Generated:** 2025-01-16T12:00:00Z  
 **Run Mode:** build
 
 ---
@@ -16,25 +16,21 @@ This security and privacy assessment identifies **critical security vulnerabilit
 - ⚠️ **Database and SMTP credentials** in plain text configuration files
 - ⚠️ **Missing SSL/TLS** for MySQL database connections
 - ⚠️ **No rate limiting** on authentication endpoints
-- ⚠️ **No GDPR compliance** mechanisms
+- ⚠️ **No account lockout** mechanism
 
 ---
 
-## Authorization Model
+## Authorization Model Summary
 
-### Authentication Mechanisms
+### Pattern 1: JWT-based Authentication with Access and Refresh Tokens
 
-#### JWT (Access Token + Refresh Token)
+**Roles:** CUSTOMER, ADMIN
 
-**Implementation:** Spring Security with jjwt 0.11.5
+**Permissions:**
+- Public endpoints: /login, /register, /check-access-token, /refresh-token, /revoke-access-token, /revoke-refresh-token, /healthcheck, /performance
+- Protected endpoints: /api/v1/admin/** (requires ADMIN role)
 
-**Token Storage:** Database (access_token, refresh_token tables)
-
-**Token Validity:**
-- Access Token: 30 minutes (1800000ms)
-- Refresh Token: 24 hours (86400000ms)
-
-**Password Encoding:** BCrypt
+**Maker-Checker Signal:** Low
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java`
@@ -44,32 +40,17 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Confidence:** High
 
-**Strengths:**
-- ✅ Stateless JWT-based authentication
-- ✅ Separate access and refresh tokens with different validity periods
-- ✅ BCrypt password hashing (industry standard)
-- ✅ Token revocation mechanism in place
-- ✅ Database-backed token storage for revocation tracking
-
-**Weaknesses:**
-- ❌ JWT secret stored in application-dev.properties (should use environment variables or secrets manager)
-- ❌ No token rotation policy documented
-- ❌ No rate limiting on authentication endpoints
-- ❌ No account lockout mechanism after failed login attempts
-
 ---
 
-### Authorization Mechanisms
-
-#### Role-Based Access Control (RBAC)
+### Pattern 2: Role-Based Access Control (RBAC)
 
 **Roles:** CUSTOMER, ADMIN
 
-**Implementation:** Spring Security with custom filter chain
+**Permissions:**
+- CUSTOMER: access to public endpoints only
+- ADMIN: access to all endpoints including /api/v1/admin/**
 
-**Protected Endpoints:** `/api/v1/admin/**`
-
-**Public Endpoints:** All other endpoints
+**Maker-Checker Signal:** None
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java:44-51`
@@ -78,515 +59,307 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Confidence:** High
 
-**Strengths:**
-- ✅ Clear role separation (CUSTOMER vs ADMIN)
-- ✅ Admin endpoints protected with role-based access
-- ✅ Custom authentication filter for JWT validation
-
-**Weaknesses:**
-- ❌ Only two roles; may need finer-grained permissions for complex scenarios
-- ❌ No attribute-based access control (ABAC) for resource-level permissions
-- ❌ No audit logging of authorization failures
-
 ---
 
-### Session Management
+### Pattern 3: Onboarding Workflow with Admin Approval
 
-**Type:** Stateless (JWT)
+**Roles:** ADMIN
 
-**Security Context:** NoOpServerSecurityContextRepository
+**Permissions:**
+- Admin can approve/reject user onboarding
+- Admin can activate/deactivate user accounts
+- Admin can change user roles
 
-**CSRF Protection:** Disabled (stateless API)
+**Maker-Checker Signal:** Medium
 
 **Evidence:**
-- `src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java`
+- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java`
+- `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java`
+- `src/main/java/com/collaberadigital/cove/security/CustomUserDetailsService.java`
 
 **Confidence:** High
 
-**Strengths:**
-- ✅ Stateless design improves scalability
-- ✅ No server-side session storage required
-
-**Weaknesses:**
-- ❌ CSRF protection disabled (acceptable for stateless APIs but requires client-side token management)
-- ❌ No session timeout enforcement beyond token expiration
-
 ---
 
-## Sensitive Data Inventory
+## Sensitive Data Identification
 
-### Authentication Credentials
+### 1. Authentication Credentials - Passwords
 
-#### 1. Password
+**Sensitivity Level:** Critical
 
-**Storage Location:** users table (MySQL)
+**Locations:**
+- users table (MySQL) - password field (BCrypt hashed)
 
-**Encryption at Rest:** BCrypt hashed
-
-**Encryption in Transit:** HTTPS (assumed)
-
-**Access Control:** Database credentials in application-dev.properties
+**Flow Summary:**
+Passwords are hashed with BCrypt before storage. Transmitted over HTTPS during registration and login. Never returned in API responses.
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java`
+- `src/main/java/com/collaberadigital/cove/security/AppConfig.java`
 - `src/main/resources/application-dev.properties:48-52`
-
-**Confidence:** High
-
-**Privacy Risk:** High
-
-**Recommendations:**
-- Ensure database credentials are stored in environment variables or secrets manager
-- Enable database encryption at rest (AWS RDS encryption)
-- Implement password complexity requirements
-- Add password reset functionality
 
 ---
 
-#### 2. JWT Tokens (access_token, refresh_token)
+### 2. Authentication Credentials - JWT Tokens
 
-**Storage Location:** access_token, refresh_token tables (MySQL)
+**Sensitivity Level:** High
 
-**Encryption at Rest:** Plain text (tokens are signed, not encrypted)
+**Locations:**
+- access_token table (MySQL) - token field (plain text, signed)
+- refresh_token table (MySQL) - token field (plain text, signed)
 
-**Encryption in Transit:** HTTPS (assumed)
-
-**Access Control:** Database credentials in application-dev.properties
+**Flow Summary:**
+JWT tokens are generated on login, stored in database with expiration and revocation flags. Tokens are signed with HS256 but not encrypted at rest. Transmitted over HTTPS.
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java`
 - `src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java`
-
-**Confidence:** High
-
-**Privacy Risk:** Medium
-
-**Recommendations:**
-- Consider encrypting tokens at rest in database
-- Implement token rotation policy
-- Add token expiration monitoring and cleanup
+- `src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java`
+- `src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java`
 
 ---
 
-### Personally Identifiable Information (PII)
+### 3. Personally Identifiable Information (PII) - Email
 
-#### 1. Email
+**Sensitivity Level:** High
 
-**Storage Location:** users table (MySQL), action_history table
+**Locations:**
+- users table (MySQL) - email field (plain text, unique)
+- action_history table (MySQL) - userEmail, updateByAdminEmail fields (plain text)
 
-**Encryption at Rest:** None (plain text)
-
-**Encryption in Transit:** HTTPS (assumed)
-
-**Access Control:** Database credentials in application-dev.properties
+**Flow Summary:**
+Email addresses are stored in plain text, used for authentication and audit logging. Transmitted over HTTPS. Included in email notifications sent via Gmail SMTP.
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java`
 - `src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java`
-
-**Confidence:** High
-
-**Privacy Risk:** High
-
-**Recommendations:**
-- Consider email hashing or pseudonymization for audit logs
-- Implement data retention policy for action_history
-- Add GDPR compliance mechanisms (right to be forgotten, data export)
+- `src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java`
 
 ---
 
-#### 2. Firstname, Lastname
+### 4. Personally Identifiable Information (PII) - Name
 
-**Storage Location:** users table (MySQL)
+**Sensitivity Level:** Medium
 
-**Encryption at Rest:** None (plain text)
+**Locations:**
+- users table (MySQL) - firstname, lastname fields (plain text)
 
-**Encryption in Transit:** HTTPS (assumed)
-
-**Access Control:** Database credentials in application-dev.properties
+**Flow Summary:**
+User names are stored in plain text, included in JWT token payload, and used in email notifications. Transmitted over HTTPS.
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java`
-
-**Confidence:** High
-
-**Privacy Risk:** Medium
-
-**Recommendations:**
-- Consider field-level encryption for PII
-- Implement data minimization (only collect necessary PII)
+- `src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java`
 
 ---
 
-#### 3. Company, Country, Designation
+### 5. Audit and Compliance Data - Action History
 
-**Storage Location:** users table (MySQL)
+**Sensitivity Level:** Medium
 
-**Encryption at Rest:** None (plain text)
+**Locations:**
+- action_history table (MySQL) - all fields (plain text)
 
-**Encryption in Transit:** HTTPS (assumed)
-
-**Access Control:** Database credentials in application-dev.properties
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java`
-
-**Confidence:** High
-
-**Privacy Risk:** Low
-
-**Recommendations:**
-- Document data retention policy
-- Ensure compliance with data protection regulations
-
----
-
-### Audit and Compliance Data
-
-#### Action History
-
-**Storage Location:** action_history table (MySQL)
-
-**Encryption at Rest:** None (plain text)
-
-**Encryption in Transit:** HTTPS (assumed)
-
-**Access Control:** Database credentials in application-dev.properties
+**Flow Summary:**
+Admin actions on user accounts are logged with timestamps, admin attribution, and action details. Stored in plain text. Accessible only to admins via /api/v1/admin/action-history endpoint.
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java`
 - `src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java`
-
-**Confidence:** High
-
-**Privacy Risk:** Medium
-
-**Recommendations:**
-- Implement audit log retention policy
-- Consider audit log encryption
-- Add tamper-proof audit logging (e.g., append-only storage)
+- `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java`
 
 ---
 
-### External API Credentials
+### 6. External API Credentials - OneView API (CRITICAL)
 
-#### 1. OneView API Credentials (CRITICAL)
+**Sensitivity Level:** Critical
 
-**Storage Location:** OneViewServiceImpl.java (source code)
+**Locations:**
+- OneViewServiceImpl.java source code (hardcoded plain text)
 
-**Encryption at Rest:** None (plain text in source code)
-
-**Encryption in Transit:** HTTPS
-
-**Access Control:** Source code access
+**Flow Summary:**
+OneView API credentials (username and password) are hardcoded in source code. Used to authenticate with external OneView API over HTTPS.
 
 **Evidence:**
 - `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45`
 - userName=Nagahemanthkn
 - password=Digital@$2458
 
-**Confidence:** High
-
-**Privacy Risk:** CRITICAL
-
-**Recommendations:**
-- ⚠️ **URGENT:** Remove hardcoded credentials from source code
-- Store credentials in environment variables or AWS Secrets Manager
-- Rotate compromised credentials immediately
-- Implement secrets scanning in CI/CD pipeline
-
 ---
 
-#### 2. Gmail SMTP Credentials
+### 7. External API Credentials - Gmail SMTP
 
-**Storage Location:** application-dev.properties
+**Sensitivity Level:** High
 
-**Encryption at Rest:** None (plain text in config file)
+**Locations:**
+- application-dev.properties (plain text)
 
-**Encryption in Transit:** SMTP/SSL
-
-**Access Control:** Config file access
+**Flow Summary:**
+Gmail SMTP credentials (username and app password) are stored in plain text in configuration file. Used to send email notifications over SMTP/SSL.
 
 **Evidence:**
 - `src/main/resources/application-dev.properties:41-46`
 - username=covecollaberadigital@gmail.com
 - password=abmedqpfrirzecrl
 
-**Confidence:** High
-
-**Privacy Risk:** High
-
-**Recommendations:**
-- Move SMTP credentials to environment variables or secrets manager
-- Use OAuth2 for Gmail authentication instead of app passwords
-- Rotate credentials regularly
-
 ---
 
-#### 3. MySQL Database Credentials
+### 8. Database Credentials - MySQL (CRITICAL)
 
-**Storage Location:** application-dev.properties
+**Sensitivity Level:** Critical
 
-**Encryption at Rest:** None (plain text in config file)
+**Locations:**
+- application-dev.properties (plain text)
 
-**Encryption in Transit:** JDBC/MySQL (SSL not explicitly configured)
-
-**Access Control:** Config file access
+**Flow Summary:**
+MySQL database credentials (username and password) are stored in plain text in configuration file. Used to connect to AWS RDS MySQL database. SSL/TLS not explicitly configured for database connection.
 
 **Evidence:**
 - `src/main/resources/application-dev.properties:48-52`
 - username=admin
 - password=coveadmin2024
 
-**Confidence:** High
-
-**Privacy Risk:** CRITICAL
-
-**Recommendations:**
-- Move database credentials to environment variables or AWS Secrets Manager
-- Enable SSL/TLS for MySQL connections
-- Use IAM database authentication for AWS RDS
-- Implement database credential rotation
-
 ---
 
-## Data Flows
+## Data Handling Recommendations
 
-### Inbound Flows
+### Critical Priority
 
-#### 1. User Registration
+#### 1. Remove Hardcoded OneView API Credentials
 
-**Source:** Client (Web/Mobile)
+**Recommendation:** Immediately remove hardcoded OneView API credentials from source code and store in environment variables or AWS Secrets Manager
 
-**Destination:** cove-user-service
+**Rationale:** Hardcoded credentials in source code are a critical security vulnerability. Anyone with repository access can view and misuse these credentials.
 
-**Data Elements:** email, password, firstname, lastname, company, country, designation
+**Standard Alignment:** OWASP Top 10 (A07:2021 – Identification and Authentication Failures), CWE-798 (Use of Hard-coded Credentials)
 
-**Protocol:** HTTPS/REST
-
-**Endpoint:** POST /register
-
-**Encryption in Transit:** HTTPS (assumed)
-
-**Authentication Required:** No
-
-**Authorization Required:** No
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java`
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java`
-
-**Confidence:** High
-
-**Privacy Risk:** High
-
-**Recommendations:**
-- Implement CAPTCHA to prevent automated registrations
-- Add email verification before account activation
-- Implement rate limiting on registration endpoint
-
----
-
-#### 2. User Login
-
-**Source:** Client (Web/Mobile)
-
-**Destination:** cove-user-service
-
-**Data Elements:** email, password
-
-**Protocol:** HTTPS/REST
-
-**Endpoint:** POST /login
-
-**Encryption in Transit:** HTTPS (assumed)
-
-**Authentication Required:** No
-
-**Authorization Required:** No
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java`
-- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java`
-
-**Confidence:** High
-
-**Privacy Risk:** High
-
-**Recommendations:**
-- Implement rate limiting on login endpoint
-- Add account lockout after failed login attempts
-- Implement multi-factor authentication (MFA)
-- Log failed login attempts for security monitoring
-
----
-
-#### 3. Admin User Management
-
-**Source:** Admin Client
-
-**Destination:** cove-user-service
-
-**Data Elements:** email, onboarding_status, account_status, role
-
-**Protocol:** HTTPS/REST
-
-**Endpoint:** PUT /api/v1/admin/{toEmail}/*
-
-**Encryption in Transit:** HTTPS (assumed)
-
-**Authentication Required:** Yes
-
-**Authorization Required:** Yes (ADMIN role)
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java`
-- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java`
-
-**Confidence:** High
-
-**Privacy Risk:** Medium
-
-**Recommendations:**
-- Implement audit logging for all admin actions
-- Add approval workflow for sensitive admin operations
-- Implement IP whitelisting for admin endpoints
-
----
-
-### Outbound Flows
-
-#### 1. Email Notifications
-
-**Source:** cove-user-service
-
-**Destination:** Gmail SMTP
-
-**Data Elements:** email, firstname, lastname, onboarding_status
-
-**Protocol:** SMTP/SSL
-
-**Encryption in Transit:** SSL/TLS
-
-**Authentication Required:** Yes
-
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java`
-- `src/main/resources/application-dev.properties:41-46`
-
-**Confidence:** High
-
-**Privacy Risk:** Medium
-
-**Recommendations:**
-- Ensure email templates do not expose sensitive information
-- Implement email sending rate limits
-- Add email delivery failure handling
-
----
-
-#### 2. Performance Data Retrieval
-
-**Source:** cove-user-service
-
-**Destination:** OneView API
-
-**Data Elements:** username, password, weekEndingDates, projectTypes
-
-**Protocol:** HTTPS/REST
-
-**Encryption in Transit:** HTTPS
-
-**Authentication Required:** Yes
-
-**Evidence:**
+**Affected Areas:**
 - `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java`
 
-**Confidence:** High
+---
 
-**Privacy Risk:** CRITICAL
+#### 2. Move All Credentials to Secure Storage
 
-**Recommendations:**
-- ⚠️ **URGENT:** Remove hardcoded credentials
-- Implement secure credential storage
-- Add request/response logging for audit
-- Implement timeout and retry policies
+**Recommendation:** Move all credentials (database, SMTP, JWT secrets) from application-dev.properties to environment variables or AWS Secrets Manager
+
+**Rationale:** Configuration files with plain text credentials can be accidentally committed to version control or exposed through misconfigured deployments.
+
+**Standard Alignment:** OWASP Top 10 (A07:2021 – Identification and Authentication Failures), NIST SP 800-53 (IA-5)
+
+**Affected Areas:**
+- `src/main/resources/application-dev.properties`
 
 ---
 
-#### 3. Database Operations
+### High Priority
 
-**Source:** cove-user-service
+#### 3. Enable SSL/TLS for Database Connections
 
-**Destination:** AWS RDS MySQL
+**Recommendation:** Enable SSL/TLS for MySQL database connections by adding SSL parameters to JDBC URL
 
-**Data Elements:** All user data, tokens, action history
+**Rationale:** Database traffic may be transmitted in plain text without SSL/TLS, exposing sensitive data to network sniffing.
 
-**Protocol:** JDBC/MySQL
+**Standard Alignment:** OWASP Top 10 (A02:2021 – Cryptographic Failures), PCI DSS 4.1
 
-**Encryption in Transit:** Not explicitly configured (should use SSL)
-
-**Authentication Required:** Yes
-
-**Evidence:**
+**Affected Areas:**
 - `src/main/resources/application-dev.properties:48-52`
-- `src/main/java/com/collaberadigital/cove/repository/*`
-
-**Confidence:** High
-
-**Privacy Risk:** CRITICAL
-
-**Recommendations:**
-- Enable SSL/TLS for MySQL connections
-- Use IAM database authentication
-- Implement database connection pooling with secure configuration
-- Enable database audit logging
 
 ---
 
-### Internal Flows
+#### 4. Implement Rate Limiting
 
-#### 1. Token Generation and Storage
+**Recommendation:** Implement rate limiting on authentication endpoints (/login, /register) to prevent brute force attacks
 
-**Source:** UserServiceImpl
+**Rationale:** Without rate limiting, authentication endpoints are vulnerable to brute force attacks, credential stuffing, and denial of service.
 
-**Destination:** AccessTokenRepo, RefreshTokenRepo
+**Standard Alignment:** OWASP Top 10 (A07:2021 – Identification and Authentication Failures), NIST SP 800-63B
 
-**Data Elements:** JWT tokens, user_id, expiration, revocation status
+**Affected Areas:**
+- `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java`
 
-**Evidence:**
+---
+
+#### 5. Implement Account Lockout
+
+**Recommendation:** Implement account lockout mechanism after failed login attempts
+
+**Rationale:** Account lockout prevents brute force attacks by temporarily disabling accounts after multiple failed login attempts.
+
+**Standard Alignment:** OWASP Top 10 (A07:2021 – Identification and Authentication Failures), NIST SP 800-63B
+
+**Affected Areas:**
 - `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java`
-- `src/main/java/com/collaberadigital/cove/repository/AccessTokenRepo.java`
-
-**Confidence:** High
-
-**Privacy Risk:** Medium
-
-**Recommendations:**
-- Implement token cleanup job for expired tokens
-- Add token usage monitoring
 
 ---
 
-#### 2. Audit Logging
+#### 6. Implement Comprehensive Audit Logging
 
-**Source:** AdminServiceImpl
+**Recommendation:** Implement comprehensive audit logging for all authentication events (successful and failed logins)
 
-**Destination:** ActionHistoryRepo
+**Rationale:** Audit logging is essential for detecting and responding to security incidents, brute force attacks, and unauthorized access attempts.
 
-**Data Elements:** user_email, admin_email, action, action_type, comments
+**Standard Alignment:** NIST SP 800-53 (AU-2, AU-3), PCI DSS 10.2
 
-**Evidence:**
-- `src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java`
-- `src/main/java/com/collaberadigital/cove/repository/ActionHistoryRepo.java`
+**Affected Areas:**
+- `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java`
 
-**Confidence:** High
+---
 
-**Privacy Risk:** Low
+### Medium Priority
 
-**Recommendations:**
-- Implement audit log retention policy
-- Add tamper-proof audit logging
+#### 7. Implement Multi-Factor Authentication (MFA)
+
+**Recommendation:** Implement multi-factor authentication (MFA) for all users, especially admin accounts
+
+**Rationale:** MFA significantly reduces the risk of account compromise from credential theft and phishing attacks.
+
+**Standard Alignment:** NIST SP 800-63B, OWASP ASVS 2.8
+
+**Affected Areas:**
+- Authentication flow
+
+---
+
+#### 8. Implement GDPR Data Subject Rights
+
+**Recommendation:** Implement GDPR data subject rights endpoints (right to access, rectification, erasure, data portability)
+
+**Rationale:** GDPR compliance requires providing data subjects with mechanisms to exercise their rights over their personal data.
+
+**Standard Alignment:** GDPR Articles 15-20
+
+**Affected Areas:**
+- User management endpoints
+
+---
+
+#### 9. Implement Data Retention Policies
+
+**Recommendation:** Implement data retention and deletion policies for audit logs and user data
+
+**Rationale:** Data retention policies are required for GDPR compliance and help minimize data exposure risk.
+
+**Standard Alignment:** GDPR Article 5(1)(e), NIST SP 800-53 (SI-12)
+
+**Affected Areas:**
+- `src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java`
+- `src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java`
+
+---
+
+### Low Priority
+
+#### 10. Encrypt JWT Tokens at Rest
+
+**Recommendation:** Consider encrypting JWT tokens at rest in database
+
+**Rationale:** While JWT tokens are signed, encrypting them at rest provides an additional layer of protection against database compromise.
+
+**Standard Alignment:** OWASP ASVS 2.6, NIST SP 800-53 (SC-28)
+
+**Affected Areas:**
+- `src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java`
+- `src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java`
 
 ---
 
@@ -596,7 +369,7 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Severity:** Critical
 
-**Description:** OneView API credentials (username and password) are hardcoded in OneViewServiceImpl.java
+**Description:** OneView API credentials (username and password) are hardcoded in OneViewServiceImpl.java source code
 
 **Location:** `src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45`
 
@@ -606,20 +379,11 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Confidence:** High
 
-**Impact:** Credentials exposed in source code can be accessed by anyone with repository access. If repository is public or compromised, credentials can be used to access OneView API.
-
-**Recommendations:**
-- ⚠️ Immediately remove hardcoded credentials from source code
-- Store credentials in environment variables or AWS Secrets Manager
-- Rotate compromised credentials
-- Implement secrets scanning in CI/CD pipeline to prevent future occurrences
-- Add pre-commit hooks to detect hardcoded secrets
-
 ---
 
-### 2. Credentials in Configuration Files (HIGH)
+### 2. Credentials in Configuration Files (CRITICAL)
 
-**Severity:** High
+**Severity:** Critical
 
 **Description:** Database and SMTP credentials stored in plain text in application-dev.properties
 
@@ -632,14 +396,6 @@ This security and privacy assessment identifies **critical security vulnerabilit
 - spring.mail.password=abmedqpfrirzecrl
 
 **Confidence:** High
-
-**Impact:** Configuration files with credentials can be accidentally committed to version control or exposed through misconfigured deployments.
-
-**Recommendations:**
-- Move all credentials to environment variables
-- Use AWS Secrets Manager or Parameter Store for credential management
-- Add application-dev.properties to .gitignore
-- Use Spring Cloud Config or similar for externalized configuration
 
 ---
 
@@ -656,18 +412,11 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Confidence:** High
 
-**Impact:** Database traffic may be transmitted in plain text, exposing sensitive data to network sniffing.
-
-**Recommendations:**
-- Add SSL parameters to JDBC URL: ?useSSL=true&requireSSL=true
-- Configure SSL certificates for MySQL connection
-- Enable AWS RDS SSL enforcement
-
 ---
 
-### 4. No Rate Limiting (MEDIUM)
+### 4. No Rate Limiting (HIGH)
 
-**Severity:** Medium
+**Severity:** High
 
 **Description:** Authentication endpoints (login, register) lack rate limiting
 
@@ -678,36 +427,20 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Confidence:** High
 
-**Impact:** Vulnerable to brute force attacks, credential stuffing, and denial of service.
-
-**Recommendations:**
-- Implement rate limiting using Spring Cloud Gateway or similar
-- Add account lockout after failed login attempts
-- Implement CAPTCHA for registration and login
-- Add IP-based rate limiting
-
 ---
 
-### 5. No Input Validation (MEDIUM)
+### 5. No Account Lockout (HIGH)
 
-**Severity:** Medium
+**Severity:** High
 
-**Description:** Limited input validation on user registration and login endpoints
+**Description:** No account lockout mechanism after failed login attempts
 
-**Location:** `src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java`
+**Location:** `src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java`
 
 **Evidence:**
-- Basic @Valid annotation usage, but no custom validation rules
+- No failed login attempt tracking or lockout logic detected
 
-**Confidence:** Medium
-
-**Impact:** Vulnerable to injection attacks, malformed data, and business logic bypass.
-
-**Recommendations:**
-- Implement comprehensive input validation
-- Add password complexity requirements
-- Validate email format and domain
-- Sanitize all user inputs
+**Confidence:** High
 
 ---
 
@@ -724,39 +457,9 @@ This security and privacy assessment identifies **critical security vulnerabilit
 
 **Confidence:** Medium
 
-**Impact:** Difficult to detect and respond to security incidents, brute force attacks, or unauthorized access attempts.
-
-**Recommendations:**
-- Implement comprehensive audit logging for all authentication events
-- Log failed login attempts with IP address and timestamp
-- Integrate with SIEM or security monitoring tools
-- Add alerting for suspicious authentication patterns
-
 ---
 
-### 7. CORS Configuration Too Permissive (LOW)
-
-**Severity:** Low
-
-**Description:** CORS configuration allows all origins
-
-**Location:** `src/main/java/com/collaberadigital/cove/configuration/CorsGlobalConfiguration.java`
-
-**Evidence:**
-- Permissive CORS configuration detected
-
-**Confidence:** Medium
-
-**Impact:** May allow unauthorized cross-origin requests from malicious websites.
-
-**Recommendations:**
-- Restrict CORS to specific trusted origins
-- Use environment-specific CORS configuration
-- Implement CORS preflight request validation
-
----
-
-### 8. No Multi-Factor Authentication (MFA) (MEDIUM)
+### 7. No Multi-Factor Authentication (MFA) (MEDIUM)
 
 **Severity:** Medium
 
@@ -765,121 +468,44 @@ This security and privacy assessment identifies **critical security vulnerabilit
 **Location:** Authentication flow
 
 **Evidence:**
-- No MFA-related code detected
+- No MFA-related code detected in security package
 
 **Confidence:** High
 
-**Impact:** Single factor authentication is vulnerable to credential theft and phishing attacks.
-
-**Recommendations:**
-- Implement MFA using TOTP (Time-based One-Time Password)
-- Support SMS or email-based OTP as fallback
-- Make MFA mandatory for admin accounts
-
 ---
 
-## Compliance Considerations
+### 8. CORS Configuration Too Permissive (LOW)
 
-### GDPR
+**Severity:** Low
 
-**Applicable:** Yes
+**Description:** CORS configuration may allow all origins
 
-**Data Subject Rights:**
-- Right to Access: Not implemented
-- Right to Rectification: Partially implemented (admin can update user data)
-- Right to Erasure: Not implemented
-- Right to Data Portability: Not implemented
-- Right to Object: Not implemented
+**Location:** `src/main/java/com/collaberadigital/cove/configuration/CorsGlobalConfiguration.java`
 
-**Recommendations:**
-- Implement GDPR data subject rights endpoints
-- Add data retention and deletion policies
-- Implement consent management
-- Add privacy policy and terms of service acceptance
-- Implement data breach notification mechanism
+**Evidence:**
+- Permissive CORS configuration detected in repository summary
 
----
-
-### PCI DSS
-
-**Applicable:** No
-
-**Reason:** No payment card data processing detected
-
----
-
-### HIPAA
-
-**Applicable:** No
-
-**Reason:** No health information processing detected
-
----
-
-### SOX
-
-**Applicable:** Unknown
-
-**Reason:** Depends on business context; audit logging is in place but may need enhancement
-
----
-
-## Recommendations Summary
-
-### Critical Priority
-
-1. ⚠️ Remove hardcoded OneView API credentials from source code immediately
-2. ⚠️ Move all credentials (database, SMTP) to environment variables or AWS Secrets Manager
-3. ⚠️ Enable SSL/TLS for MySQL database connections
-4. ⚠️ Rotate all exposed credentials
-
----
-
-### High Priority
-
-1. Implement rate limiting on authentication endpoints
-2. Add account lockout mechanism after failed login attempts
-3. Implement comprehensive audit logging for authentication events
-4. Add secrets scanning to CI/CD pipeline
-5. Enable database encryption at rest (AWS RDS encryption)
-
----
-
-### Medium Priority
-
-1. Implement multi-factor authentication (MFA)
-2. Add CAPTCHA to registration and login endpoints
-3. Implement GDPR data subject rights
-4. Add password complexity requirements
-5. Implement data retention and deletion policies
-6. Add IP whitelisting for admin endpoints
-
----
-
-### Low Priority
-
-1. Restrict CORS to specific trusted origins
-2. Implement token rotation policy
-3. Add email verification before account activation
-4. Implement password reset functionality
+**Confidence:** Medium
 
 ---
 
 ## Analysis Metadata
 
-### Inputs
-- **Repository:** ramanohar/AAVA-Reverse-Engineering-POC
-- **Branch:** main
-- **Run Mode:** build
+**Generated:** 2025-01-16T12:00:00Z
 
-### Limits and Unknowns
+**Inputs:**
+- Repository: ramanohar/AAVA-Reverse-Engineering-POC
+- Branch: main
+- Run Mode: build
 
-1. HTTPS enforcement not explicitly verified; assumed based on production deployment
+**Limits and Unknowns:**
+1. HTTPS enforcement not explicitly verified in code; assumed based on production deployment context
 2. Network security controls (firewalls, security groups) not visible in application code
 3. AWS RDS encryption at rest configuration not visible in application code
 4. Secrets manager integration not detected; may be configured at deployment level
 5. Rate limiting may be implemented at API gateway level (not visible in application code)
 6. MFA implementation may be planned but not yet implemented
+7. CORS configuration details not fully visible; marked as low confidence
 
 ---
 
