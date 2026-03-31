@@ -1,0 +1,249 @@
+{
+  "touchpoints_source": {
+    "source_artifact_path": "aava-demo/reverse-engineering/artifacts/dependency_graph.json",
+    "source_touchpoints_count": 7,
+    "notes": "Integration Catalog enriches Dependency Graph touchpoints; no separate inventory produced."
+  },
+  "touchpoint_enrichments": {
+    "enrichments": [
+      {
+        "touchpoint_name": "OneView API",
+        "direction": "outbound",
+        "protocol_or_tech": "HTTPS/REST",
+        "auth_pattern": "custom_token",
+        "contract_summary": {
+          "inputs_summary": "POST /user/signin with username/password JSON body; GET /ava/oneview/internal/api/dashboard/rag/list with query params (weekEndingDates, projectTypes)",
+          "outputs_summary": "Login returns X-Ava-Access-Token header; RAG list returns JSON with deliveryRagProjectList array containing project, client, ragStatus fields",
+          "schema_hint": "LoginRequestOneView (userName, password), PerformaceModel (data.deliveryRagProjectList[]), PerformanceResponse (data[])"
+        },
+        "failure_behavior": {
+          "retry_policy": "Fallback to previous day's data if current day returns empty list; no explicit retry on HTTP failure",
+          "idempotency_signal": "GET requests are idempotent; POST /signin is not idempotent but stateless",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "No explicit try-catch around RestTemplate calls; relies on Spring default exception handling"
+        },
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45 (hardcoded credentials: userName=Nagahemanthkn, password=Digital@$2458)",
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:47 (custom header: X-Ava-Access-Token)",
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:70-90 (fallback to previous day if empty response)"
+        ],
+        "confidence": "high"
+      },
+      {
+        "touchpoint_name": "AWS RDS MySQL",
+        "direction": "outbound",
+        "protocol_or_tech": "JDBC/MySQL",
+        "auth_pattern": "basic",
+        "contract_summary": {
+          "inputs_summary": "JPA repository method calls (findByEmail, save, findById, etc.) with entity objects or query parameters",
+          "outputs_summary": "Entity objects (UserEntity, AccessToken, RefreshToken, ActionHistory) or Optional<Entity>",
+          "schema_hint": "Tables: users, access_token, refresh_token, action_history; JPA entities define schema via annotations"
+        },
+        "failure_behavior": {
+          "retry_policy": "Spring Data JPA default retry (none); connection pool handles transient failures",
+          "idempotency_signal": "Reads are idempotent; writes (save) are not idempotent without application-level checks",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "Repository methods throw exceptions on failure; caught by service layer or global exception handler"
+        },
+        "evidence": [
+          "src/main/resources/application-dev.properties:48-52 (datasource URL, username=admin, password=coveadmin2024)",
+          "src/main/java/com/collaberadigital/cove/repository/UserRepository.java (custom queries with pagination)",
+          "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-100 (save with no explicit error handling)"
+        ],
+        "confidence": "high"
+      },
+      {
+        "touchpoint_name": "Gmail SMTP",
+        "direction": "outbound",
+        "protocol_or_tech": "SMTP/SSL",
+        "auth_pattern": "basic",
+        "contract_summary": {
+          "inputs_summary": "Email address, subject, FreeMarker template name, template model (name, description)",
+          "outputs_summary": "Boolean success/failure; throws CustomException on failure",
+          "schema_hint": "Templates: email-template-rejected.ftl, email-template-approved.ftl, email-template-pending-approval.ftl"
+        },
+        "failure_behavior": {
+          "retry_policy": "No retry; throws CustomException immediately on send failure",
+          "idempotency_signal": "Not idempotent; duplicate sends possible on retry at caller level",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "Catches Exception, logs stack trace, throws CustomException with code 451"
+        },
+        "evidence": [
+          "src/main/resources/application-dev.properties:41-46 (host=smtp.gmail.com, port=465, username=covecollaberadigital@gmail.com, password=abmedqpfrirzecrl)",
+          "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java:40-70 (sendEmailReject method with try-catch)",
+          "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java:64 (throws CustomException on failure)"
+        ],
+        "confidence": "high"
+      },
+      {
+        "touchpoint_name": "Netflix Eureka",
+        "direction": "bidirectional",
+        "protocol_or_tech": "HTTP/REST",
+        "auth_pattern": "unknown",
+        "contract_summary": {
+          "inputs_summary": "Service registration metadata (instance ID, hostname, preferIpAddress)",
+          "outputs_summary": "Service registry updates; heartbeat responses",
+          "schema_hint": "Eureka client library handles protocol; no explicit request/response models in application code"
+        },
+        "failure_behavior": {
+          "retry_policy": "Eureka client library default retry and failover",
+          "idempotency_signal": "Registration and heartbeat are idempotent",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "Eureka client library handles failures; application does not explicitly handle Eureka errors"
+        },
+        "evidence": [
+          "src/main/resources/application-dev.properties:2-5 (service URL, instance ID, hostname, preferIpAddress)",
+          "pom.xml:44-47 (spring-cloud-starter-netflix-eureka-client dependency)"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "touchpoint_name": "Prometheus",
+        "direction": "inbound",
+        "protocol_or_tech": "HTTP/Prometheus scrape",
+        "auth_pattern": "unknown",
+        "contract_summary": {
+          "inputs_summary": "HTTP GET /actuator/prometheus from Prometheus server",
+          "outputs_summary": "Prometheus text format metrics (application metrics, JVM metrics, Spring Boot metrics)",
+          "schema_hint": "Micrometer registry exports metrics in Prometheus format"
+        },
+        "failure_behavior": {
+          "retry_policy": "Prometheus server retries scrape on failure",
+          "idempotency_signal": "Scrape endpoint is idempotent",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "Spring Actuator handles endpoint errors; application does not explicitly handle scrape failures"
+        },
+        "evidence": [
+          "src/main/resources/application-dev.properties:10-15 (actuator endpoints enabled: health, info, prometheus, metrics)",
+          "kubernetes/deployment.yaml:1-36 (Prometheus scrape annotations on port 8090)"
+        ],
+        "confidence": "high"
+      },
+      {
+        "touchpoint_name": "AWS ECR",
+        "direction": "outbound",
+        "protocol_or_tech": "Docker Registry API",
+        "auth_pattern": "unknown",
+        "contract_summary": {
+          "inputs_summary": "Docker image push/pull commands via AWS CLI and kubectl",
+          "outputs_summary": "Image manifest and layer storage confirmation",
+          "schema_hint": "Docker Registry HTTP API V2"
+        },
+        "failure_behavior": {
+          "retry_policy": "AWS CLI and Docker client default retry",
+          "idempotency_signal": "Image push is idempotent (same tag overwrites); pull is idempotent",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "CI/CD pipeline (buildspec.yml) does not explicitly handle ECR errors; relies on AWS CLI exit codes"
+        },
+        "evidence": [
+          "buildspec.yml:pre_build phase (ECR login command)",
+          "buildspec.yml:post_build phase (docker push command)"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "touchpoint_name": "AWS EKS",
+        "direction": "bidirectional",
+        "protocol_or_tech": "Kubernetes API",
+        "auth_pattern": "unknown",
+        "contract_summary": {
+          "inputs_summary": "kubectl apply commands with deployment.yaml and service.yaml manifests",
+          "outputs_summary": "Kubernetes resource creation/update confirmation; pod status",
+          "schema_hint": "Kubernetes Deployment and Service resource schemas"
+        },
+        "failure_behavior": {
+          "retry_policy": "kubectl retries on transient API failures; Kubernetes controller retries pod creation on failure",
+          "idempotency_signal": "kubectl apply is idempotent; Kubernetes reconciliation loop ensures desired state",
+          "timeout_signal": "unknown",
+          "error_handling_signal": "CI/CD pipeline (buildspec.yml) does not explicitly handle kubectl errors; relies on exit codes"
+        },
+        "evidence": [
+          "buildspec.yml:pre_build phase (kubectl configuration)",
+          "buildspec.yml:post_build phase (kubectl apply and rollout restart commands)",
+          "kubernetes/deployment.yaml (Deployment resource with 2 replicas, resource limits)",
+          "kubernetes/service.yaml (ClusterIP service on port 80)"
+        ],
+        "confidence": "medium"
+      }
+    ]
+  },
+  "cross_cutting_patterns": {
+    "patterns": [
+      {
+        "pattern_type": "auth",
+        "description": "JWT-based authentication with access tokens (30-minute validity) and refresh tokens (24-hour validity). Tokens stored in database with expiration and revocation flags. BCrypt password hashing for user credentials.",
+        "applies_to_touchpoints": [],
+        "evidence": [
+          "src/main/resources/application-dev.properties:32-35 (jwt.secret, jwt.token.validity=1800000, jwt.refresh.token.validity=86400000)",
+          "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java (token generation and validation)",
+          "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java (refresh token generation and validation)",
+          "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:145-155 (token generation on login with revocation of old tokens)"
+        ],
+        "confidence": "high"
+      },
+      {
+        "pattern_type": "retry",
+        "description": "No explicit application-level retry logic for most integrations. OneView API has fallback to previous day's data if current day returns empty. Relies on library defaults (Eureka client, Spring Data JPA connection pool, AWS CLI, kubectl).",
+        "applies_to_touchpoints": ["OneView API", "Netflix Eureka", "AWS RDS MySQL", "AWS ECR", "AWS EKS"],
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:70-90 (fallback to previous day)",
+          "No explicit retry annotations or libraries (e.g., Spring Retry) detected in service implementations"
+        ],
+        "confidence": "high"
+      },
+      {
+        "pattern_type": "idempotency",
+        "description": "GET requests are idempotent. POST/PUT operations (user registration, login, admin updates) are not explicitly designed for idempotency; duplicate requests may cause duplicate side effects (e.g., multiple emails sent).",
+        "applies_to_touchpoints": ["OneView API", "AWS RDS MySQL", "Gmail SMTP"],
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java:95-110 (registerUser saves without idempotency check)",
+          "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java:40-70 (sendEmail does not prevent duplicate sends)"
+        ],
+        "confidence": "high"
+      },
+      {
+        "pattern_type": "timeout",
+        "description": "No explicit timeout configuration detected in application code. Relies on library and infrastructure defaults (RestTemplate, JDBC driver, JavaMailSender, Eureka client).",
+        "applies_to_touchpoints": ["OneView API", "AWS RDS MySQL", "Gmail SMTP", "Netflix Eureka"],
+        "evidence": [
+          "No timeout properties in application-dev.properties for RestTemplate, JDBC, or mail",
+          "No custom RestTemplate bean with timeout configuration detected"
+        ],
+        "confidence": "high"
+      },
+      {
+        "pattern_type": "observability",
+        "description": "Prometheus metrics exposed via Spring Actuator on /actuator/prometheus. Logging with SLF4J/Logback (commented out debug logging in properties). No distributed tracing (e.g., Sleuth, Zipkin) detected.",
+        "applies_to_touchpoints": ["Prometheus"],
+        "evidence": [
+          "src/main/resources/application-dev.properties:10-15 (actuator endpoints: health, info, prometheus, metrics)",
+          "src/main/resources/application-dev.properties:60-63 (commented out logging levels)",
+          "pom.xml (micrometer-registry-prometheus dependency)"
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "inputs": {
+      "repo_url": "ramanohar/AAVA-Reverse-Engineering-POC",
+      "branch": "main",
+      "run_mode": "build",
+      "prerequisite_artifacts": [
+        "aava-demo/reverse-engineering/artifacts/repository_summary.json",
+        "aava-demo/reverse-engineering/artifacts/dependency_graph.json"
+      ]
+    },
+    "limits_or_unknowns": [
+      "Timeout configuration not explicitly set in application code; relies on library defaults.",
+      "Auth patterns for AWS ECR and AWS EKS not visible in application code; handled by AWS CLI and kubectl.",
+      "Eureka authentication mechanism not visible in application code; may be handled by infrastructure or Eureka server configuration.",
+      "Prometheus scrape authentication not visible; may be unauthenticated or handled by Kubernetes network policies.",
+      "No API specification (OpenAPI/Swagger) found; contract details inferred from controller and service code.",
+      "Hardcoded credentials detected in OneViewServiceImpl (security risk flagged in repository summary).",
+      "No distributed tracing or correlation ID propagation detected.",
+      "Error handling for external integrations is minimal; relies on Spring default exception handling and global exception handler."
+    ]
+  }
+}

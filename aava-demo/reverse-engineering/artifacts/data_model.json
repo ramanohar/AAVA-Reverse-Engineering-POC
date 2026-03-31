@@ -1,0 +1,221 @@
+{
+  "data_assets": {
+    "stores": [
+      {
+        "name": "users",
+        "store_type": "table",
+        "technology": "MySQL 8.0.33",
+        "source_module": "cove-user-service",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java", "src/main/resources/application-dev.properties:48"],
+        "confidence": "high"
+      },
+      {
+        "name": "access_token",
+        "store_type": "table",
+        "technology": "MySQL 8.0.33",
+        "source_module": "cove-user-service",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "refresh_token",
+        "store_type": "table",
+        "technology": "MySQL 8.0.33",
+        "source_module": "cove-user-service",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "action_history",
+        "store_type": "table",
+        "technology": "MySQL 8.0.33",
+        "source_module": "cove-user-service",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "logical_models": {
+    "models": [
+      {
+        "name": "UserEntity",
+        "kind": "table",
+        "attributes_summary": [
+          "userId (Integer, PK, auto-increment)",
+          "email (String, unique, required)",
+          "password (String, BCrypt hashed)",
+          "firstname (String)",
+          "lastname (String)",
+          "company (String, required)",
+          "country (String)",
+          "role (String: CUSTOMER | ADMIN)",
+          "onboardingStatus (String: pending_approval | approved | reject)",
+          "isActive (Boolean)",
+          "registrationId (String)",
+          "designation (String)",
+          "clientId (String)",
+          "clientName (String)",
+          "clientOneView (String)",
+          "createdAt (LocalDateTime)",
+          "lastUpdatedAt (LocalDateTime)",
+          "lastUpdatedBy (String)"
+        ],
+        "source_path": "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "AccessToken",
+        "kind": "table",
+        "attributes_summary": [
+          "id (Long, PK, auto-increment)",
+          "token (String, TEXT)",
+          "tokenType (TokenType enum: BEARER)",
+          "expired (Boolean)",
+          "revoked (Boolean)",
+          "createdAt (Date, auto-generated)",
+          "user (UserEntity, FK)"
+        ],
+        "source_path": "src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "RefreshToken",
+        "kind": "table",
+        "attributes_summary": [
+          "id (Long, PK, auto-increment)",
+          "token (String, TEXT)",
+          "tokenType (TokenType enum: BEARER)",
+          "expired (Boolean)",
+          "revoked (Boolean)",
+          "createdAt (Date, auto-generated)",
+          "user (UserEntity, FK)"
+        ],
+        "source_path": "src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "ActionHistory",
+        "kind": "table",
+        "attributes_summary": [
+          "id (Long, PK, auto-increment)",
+          "userName (String)",
+          "userEmail (String)",
+          "userRole (String)",
+          "userCompany (String)",
+          "updateByAdminName (String)",
+          "updateByAdminEmail (String)",
+          "registrationId (String)",
+          "action (String)",
+          "adminComments (String)",
+          "actionType (String: OnBoarding Status | Account Status | Role Status)",
+          "createdAt (LocalDateTime, auto-generated)",
+          "updatedAt (LocalDateTime)"
+        ],
+        "source_path": "src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "ownership_mapping": {
+    "ownership": [
+      {
+        "data_asset": "users",
+        "owning_service": "cove-user-service",
+        "steward_hint": "User Management Context",
+        "confidence": "high",
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/UserRepository.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"]
+      },
+      {
+        "data_asset": "access_token",
+        "owning_service": "cove-user-service",
+        "steward_hint": "Authentication & Authorization Context",
+        "confidence": "high",
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/AccessTokenRepo.java", "src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"]
+      },
+      {
+        "data_asset": "refresh_token",
+        "owning_service": "cove-user-service",
+        "steward_hint": "Authentication & Authorization Context",
+        "confidence": "high",
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/RefreshTokenRepo.java", "src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"]
+      },
+      {
+        "data_asset": "action_history",
+        "owning_service": "cove-user-service",
+        "steward_hint": "Audit & Compliance Context",
+        "confidence": "high",
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/ActionHistoryRepo.java", "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"]
+      }
+    ]
+  },
+  "key_relationships": {
+    "relationships": [
+      {
+        "source_model": "UserEntity",
+        "target_model": "AccessToken",
+        "relationship_type": "one-to-many",
+        "key_fields": ["userId"],
+        "reference_type": "foreign_key",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java"],
+        "confidence": "high"
+      },
+      {
+        "source_model": "UserEntity",
+        "target_model": "RefreshToken",
+        "relationship_type": "one-to-many",
+        "key_fields": ["userId"],
+        "reference_type": "foreign_key",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java"],
+        "confidence": "high"
+      },
+      {
+        "source_model": "UserEntity",
+        "target_model": "ActionHistory",
+        "relationship_type": "one-to-many",
+        "key_fields": ["userEmail"],
+        "reference_type": "logical_association",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "event_and_contract_summary": {
+    "contracts": [
+      {
+        "event_or_message_name": "Email Notification (Onboarding)",
+        "producer": "cove-user-service",
+        "consumer": "Gmail SMTP",
+        "payload_summary": "Email address, subject, FreeMarker template (approved/rejected/pending), template model (name, description)",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java", "src/main/resources/templates/email-template-approved.ftl"],
+        "confidence": "high"
+      },
+      {
+        "event_or_message_name": "Performance Data Request",
+        "producer": "cove-user-service",
+        "consumer": "OneView API",
+        "payload_summary": "POST /user/signin (userName, password); GET /ava/oneview/internal/api/dashboard/rag/list (weekEndingDates, projectTypes)",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "inputs": {
+      "repo_url": "ramanohar/AAVA-Reverse-Engineering-POC",
+      "branch": "main",
+      "run_mode": "build"
+    },
+    "limits_or_unknowns": [
+      "Database schema relationships inferred from JPA entity annotations; no database migration scripts or ER diagrams available.",
+      "No explicit foreign key constraints visible in entity code; relationships inferred from @ManyToOne and @OneToMany annotations.",
+      "Event contracts limited to email notifications and external API calls; no internal event bus or message queue detected.",
+      "Client-related fields (clientId, clientName, clientOneView) in UserEntity have unclear business purpose; insufficient evidence to determine their role.",
+      "No database migration tool (Flyway/Liquibase) detected; schema evolution strategy unknown."
+    ]
+  }
+}

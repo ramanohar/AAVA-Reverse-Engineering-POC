@@ -1,0 +1,358 @@
+{
+  "authorization_model_summary": {
+    "patterns": [
+      {
+        "pattern_name": "JWT-based Authentication with Access and Refresh Tokens",
+        "roles": ["CUSTOMER", "ADMIN"],
+        "permissions": [
+          "Public endpoints: /login, /register, /check-access-token, /refresh-token, /revoke-access-token, /revoke-refresh-token, /healthcheck, /performance",
+          "Protected endpoints: /api/v1/admin/** (requires ADMIN role)"
+        ],
+        "maker_checker_signal": "low",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java",
+          "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java",
+          "src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java",
+          "src/main/resources/application-dev.properties:32-35"
+        ],
+        "confidence": "high"
+      },
+      {
+        "pattern_name": "Role-Based Access Control (RBAC)",
+        "roles": ["CUSTOMER", "ADMIN"],
+        "permissions": [
+          "CUSTOMER: access to public endpoints only",
+          "ADMIN: access to all endpoints including /api/v1/admin/**"
+        ],
+        "maker_checker_signal": "none",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java:44-51",
+          "src/main/java/com/collaberadigital/cove/utils/constant/UserRole.java",
+          "src/main/java/com/collaberadigital/cove/security/JwtTokenAuthenticationFilter.java"
+        ],
+        "confidence": "high"
+      },
+      {
+        "pattern_name": "Onboarding Workflow with Admin Approval",
+        "roles": ["ADMIN"],
+        "permissions": [
+          "Admin can approve/reject user onboarding",
+          "Admin can activate/deactivate user accounts",
+          "Admin can change user roles"
+        ],
+        "maker_checker_signal": "medium",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java",
+          "src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java",
+          "src/main/java/com/collaberadigital/cove/security/CustomUserDetailsService.java"
+        ],
+        "confidence": "high"
+      }
+    ]
+  },
+  "sensitive_data_identification": {
+    "data_items": [
+      {
+        "data_type": "Authentication Credentials - Passwords",
+        "sensitivity_level": "critical",
+        "locations": [
+          "users table (MySQL) - password field (BCrypt hashed)"
+        ],
+        "flow_summary": "Passwords are hashed with BCrypt before storage. Transmitted over HTTPS during registration and login. Never returned in API responses.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java",
+          "src/main/java/com/collaberadigital/cove/security/AppConfig.java",
+          "src/main/resources/application-dev.properties:48-52"
+        ]
+      },
+      {
+        "data_type": "Authentication Credentials - JWT Tokens",
+        "sensitivity_level": "high",
+        "locations": [
+          "access_token table (MySQL) - token field (plain text, signed)",
+          "refresh_token table (MySQL) - token field (plain text, signed)"
+        ],
+        "flow_summary": "JWT tokens are generated on login, stored in database with expiration and revocation flags. Tokens are signed with HS256 but not encrypted at rest. Transmitted over HTTPS.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java",
+          "src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java",
+          "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java",
+          "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java"
+        ]
+      },
+      {
+        "data_type": "Personally Identifiable Information (PII) - Email",
+        "sensitivity_level": "high",
+        "locations": [
+          "users table (MySQL) - email field (plain text, unique)",
+          "action_history table (MySQL) - userEmail, updateByAdminEmail fields (plain text)"
+        ],
+        "flow_summary": "Email addresses are stored in plain text, used for authentication and audit logging. Transmitted over HTTPS. Included in email notifications sent via Gmail SMTP.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java",
+          "src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java",
+          "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"
+        ]
+      },
+      {
+        "data_type": "Personally Identifiable Information (PII) - Name",
+        "sensitivity_level": "medium",
+        "locations": [
+          "users table (MySQL) - firstname, lastname fields (plain text)"
+        ],
+        "flow_summary": "User names are stored in plain text, included in JWT token payload, and used in email notifications. Transmitted over HTTPS.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java",
+          "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java"
+        ]
+      },
+      {
+        "data_type": "Audit and Compliance Data - Action History",
+        "sensitivity_level": "medium",
+        "locations": [
+          "action_history table (MySQL) - all fields (plain text)"
+        ],
+        "flow_summary": "Admin actions on user accounts are logged with timestamps, admin attribution, and action details. Stored in plain text. Accessible only to admins via /api/v1/admin/action-history endpoint.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java",
+          "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java",
+          "src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"
+        ]
+      },
+      {
+        "data_type": "External API Credentials - OneView API",
+        "sensitivity_level": "critical",
+        "locations": [
+          "OneViewServiceImpl.java source code (hardcoded plain text)"
+        ],
+        "flow_summary": "OneView API credentials (username and password) are hardcoded in source code. Used to authenticate with external OneView API over HTTPS.",
+        "evidence": [
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45"
+        ]
+      },
+      {
+        "data_type": "External API Credentials - Gmail SMTP",
+        "sensitivity_level": "high",
+        "locations": [
+          "application-dev.properties (plain text)"
+        ],
+        "flow_summary": "Gmail SMTP credentials (username and app password) are stored in plain text in configuration file. Used to send email notifications over SMTP/SSL.",
+        "evidence": [
+          "src/main/resources/application-dev.properties:41-46"
+        ]
+      },
+      {
+        "data_type": "Database Credentials - MySQL",
+        "sensitivity_level": "critical",
+        "locations": [
+          "application-dev.properties (plain text)"
+        ],
+        "flow_summary": "MySQL database credentials (username and password) are stored in plain text in configuration file. Used to connect to AWS RDS MySQL database. SSL/TLS not explicitly configured for database connection.",
+        "evidence": [
+          "src/main/resources/application-dev.properties:48-52"
+        ]
+      }
+    ]
+  },
+  "data_handling_recommendations": {
+    "recommendations": [
+      {
+        "recommendation": "Immediately remove hardcoded OneView API credentials from source code and store in environment variables or AWS Secrets Manager",
+        "rationale": "Hardcoded credentials in source code are a critical security vulnerability. Anyone with repository access can view and misuse these credentials.",
+        "priority": "critical",
+        "standard_alignment": "OWASP Top 10 (A07:2021 – Identification and Authentication Failures), CWE-798 (Use of Hard-coded Credentials)",
+        "affected_areas": [
+          "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java"
+        ]
+      },
+      {
+        "recommendation": "Move all credentials (database, SMTP, JWT secrets) from application-dev.properties to environment variables or AWS Secrets Manager",
+        "rationale": "Configuration files with plain text credentials can be accidentally committed to version control or exposed through misconfigured deployments.",
+        "priority": "critical",
+        "standard_alignment": "OWASP Top 10 (A07:2021 – Identification and Authentication Failures), NIST SP 800-53 (IA-5)",
+        "affected_areas": [
+          "src/main/resources/application-dev.properties"
+        ]
+      },
+      {
+        "recommendation": "Enable SSL/TLS for MySQL database connections by adding SSL parameters to JDBC URL",
+        "rationale": "Database traffic may be transmitted in plain text without SSL/TLS, exposing sensitive data to network sniffing.",
+        "priority": "high",
+        "standard_alignment": "OWASP Top 10 (A02:2021 – Cryptographic Failures), PCI DSS 4.1",
+        "affected_areas": [
+          "src/main/resources/application-dev.properties:48-52"
+        ]
+      },
+      {
+        "recommendation": "Implement rate limiting on authentication endpoints (/login, /register) to prevent brute force attacks",
+        "rationale": "Without rate limiting, authentication endpoints are vulnerable to brute force attacks, credential stuffing, and denial of service.",
+        "priority": "high",
+        "standard_alignment": "OWASP Top 10 (A07:2021 – Identification and Authentication Failures), NIST SP 800-63B",
+        "affected_areas": [
+          "src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"
+        ]
+      },
+      {
+        "recommendation": "Implement account lockout mechanism after failed login attempts",
+        "rationale": "Account lockout prevents brute force attacks by temporarily disabling accounts after multiple failed login attempts.",
+        "priority": "high",
+        "standard_alignment": "OWASP Top 10 (A07:2021 – Identification and Authentication Failures), NIST SP 800-63B",
+        "affected_areas": [
+          "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"
+        ]
+      },
+      {
+        "recommendation": "Implement comprehensive audit logging for all authentication events (successful and failed logins)",
+        "rationale": "Audit logging is essential for detecting and responding to security incidents, brute force attacks, and unauthorized access attempts.",
+        "priority": "high",
+        "standard_alignment": "NIST SP 800-53 (AU-2, AU-3), PCI DSS 10.2",
+        "affected_areas": [
+          "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"
+        ]
+      },
+      {
+        "recommendation": "Implement multi-factor authentication (MFA) for all users, especially admin accounts",
+        "rationale": "MFA significantly reduces the risk of account compromise from credential theft and phishing attacks.",
+        "priority": "medium",
+        "standard_alignment": "NIST SP 800-63B, OWASP ASVS 2.8",
+        "affected_areas": [
+          "Authentication flow"
+        ]
+      },
+      {
+        "recommendation": "Implement GDPR data subject rights endpoints (right to access, rectification, erasure, data portability)",
+        "rationale": "GDPR compliance requires providing data subjects with mechanisms to exercise their rights over their personal data.",
+        "priority": "medium",
+        "standard_alignment": "GDPR Articles 15-20",
+        "affected_areas": [
+          "User management endpoints"
+        ]
+      },
+      {
+        "recommendation": "Consider encrypting JWT tokens at rest in database",
+        "rationale": "While JWT tokens are signed, encrypting them at rest provides an additional layer of protection against database compromise.",
+        "priority": "low",
+        "standard_alignment": "OWASP ASVS 2.6, NIST SP 800-53 (SC-28)",
+        "affected_areas": [
+          "src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java",
+          "src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java"
+        ]
+      },
+      {
+        "recommendation": "Implement data retention and deletion policies for audit logs and user data",
+        "rationale": "Data retention policies are required for GDPR compliance and help minimize data exposure risk.",
+        "priority": "medium",
+        "standard_alignment": "GDPR Article 5(1)(e), NIST SP 800-53 (SI-12)",
+        "affected_areas": [
+          "src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java",
+          "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"
+        ]
+      }
+    ]
+  },
+  "security_smells": {
+    "smells": [
+      {
+        "smell_type": "Hardcoded Credentials",
+        "description": "OneView API credentials (username and password) are hardcoded in OneViewServiceImpl.java source code",
+        "severity": "critical",
+        "location": "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:30-45",
+        "evidence": [
+          "userName=Nagahemanthkn",
+          "password=Digital@$2458"
+        ],
+        "confidence": "high"
+      },
+      {
+        "smell_type": "Credentials in Configuration Files",
+        "description": "Database and SMTP credentials stored in plain text in application-dev.properties",
+        "severity": "critical",
+        "location": "src/main/resources/application-dev.properties",
+        "evidence": [
+          "spring.datasource.username=admin",
+          "spring.datasource.password=coveadmin2024",
+          "spring.mail.username=covecollaberadigital@gmail.com",
+          "spring.mail.password=abmedqpfrirzecrl"
+        ],
+        "confidence": "high"
+      },
+      {
+        "smell_type": "Missing SSL/TLS for Database Connection",
+        "description": "MySQL database connection does not explicitly configure SSL/TLS encryption",
+        "severity": "high",
+        "location": "src/main/resources/application-dev.properties:48-52",
+        "evidence": [
+          "No SSL configuration in JDBC URL"
+        ],
+        "confidence": "high"
+      },
+      {
+        "smell_type": "No Rate Limiting",
+        "description": "Authentication endpoints (login, register) lack rate limiting",
+        "severity": "high",
+        "location": "src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java",
+        "evidence": [
+          "No rate limiting annotations or configuration detected"
+        ],
+        "confidence": "high"
+      },
+      {
+        "smell_type": "No Account Lockout",
+        "description": "No account lockout mechanism after failed login attempts",
+        "severity": "high",
+        "location": "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java",
+        "evidence": [
+          "No failed login attempt tracking or lockout logic detected"
+        ],
+        "confidence": "high"
+      },
+      {
+        "smell_type": "No Audit Logging for Authentication Events",
+        "description": "Failed login attempts and authentication events are not logged for security monitoring",
+        "severity": "medium",
+        "location": "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java",
+        "evidence": [
+          "No explicit logging of failed login attempts"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "smell_type": "No Multi-Factor Authentication (MFA)",
+        "description": "No MFA implementation for user authentication",
+        "severity": "medium",
+        "location": "Authentication flow",
+        "evidence": [
+          "No MFA-related code detected in security package"
+        ],
+        "confidence": "high"
+      },
+      {
+        "smell_type": "CORS Configuration Too Permissive",
+        "description": "CORS configuration may allow all origins",
+        "severity": "low",
+        "location": "src/main/java/com/collaberadigital/cove/configuration/CorsGlobalConfiguration.java",
+        "evidence": [
+          "Permissive CORS configuration detected in repository summary"
+        ],
+        "confidence": "medium"
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "inputs": {
+      "repo_url": "ramanohar/AAVA-Reverse-Engineering-POC",
+      "branch": "main",
+      "run_mode": "build"
+    },
+    "limits_or_unknowns": [
+      "HTTPS enforcement not explicitly verified in code; assumed based on production deployment context",
+      "Network security controls (firewalls, security groups) not visible in application code",
+      "AWS RDS encryption at rest configuration not visible in application code",
+      "Secrets manager integration not detected; may be configured at deployment level",
+      "Rate limiting may be implemented at API gateway level (not visible in application code)",
+      "MFA implementation may be planned but not yet implemented",
+      "CORS configuration details not fully visible; marked as low confidence"
+    ]
+  }
+}

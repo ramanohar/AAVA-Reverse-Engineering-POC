@@ -1,0 +1,444 @@
+{
+  "service_module_graph": {
+    "nodes": [
+      {"id": "AuthRestController", "type": "controller", "package": "com.collaberadigital.cove.controller.impl"},
+      {"id": "AdminController", "type": "controller", "package": "com.collaberadigital.cove.controller.impl"},
+      {"id": "PerformaceController", "type": "controller", "package": "com.collaberadigital.cove.controller.impl"},
+      {"id": "Healthcheck", "type": "controller", "package": "com.collaberadigital.cove.controller.impl"},
+      {"id": "UserService", "type": "service", "package": "com.collaberadigital.cove.service"},
+      {"id": "UserServiceImpl", "type": "service_impl", "package": "com.collaberadigital.cove.service.impl"},
+      {"id": "AdminService", "type": "service", "package": "com.collaberadigital.cove.service"},
+      {"id": "AdminServiceImpl", "type": "service_impl", "package": "com.collaberadigital.cove.service.impl"},
+      {"id": "AuthService", "type": "service", "package": "com.collaberadigital.cove.service"},
+      {"id": "AuthServiceImpl", "type": "service_impl", "package": "com.collaberadigital.cove.service.impl"},
+      {"id": "EmailService", "type": "service", "package": "com.collaberadigital.cove.service"},
+      {"id": "EmailServiceImpl", "type": "service_impl", "package": "com.collaberadigital.cove.service.impl"},
+      {"id": "ActionHistoryService", "type": "service", "package": "com.collaberadigital.cove.service"},
+      {"id": "ActionHistoryServiceImpl", "type": "service_impl", "package": "com.collaberadigital.cove.service.impl"},
+      {"id": "OneViewService", "type": "service", "package": "com.collaberadigital.cove.service"},
+      {"id": "OneViewServiceImpl", "type": "service_impl", "package": "com.collaberadigital.cove.service.impl"},
+      {"id": "UserRepository", "type": "repository", "package": "com.collaberadigital.cove.repository"},
+      {"id": "AccessTokenRepo", "type": "repository", "package": "com.collaberadigital.cove.repository"},
+      {"id": "RefreshTokenRepo", "type": "repository", "package": "com.collaberadigital.cove.repository"},
+      {"id": "ActionHistoryRepo", "type": "repository", "package": "com.collaberadigital.cove.repository"},
+      {"id": "CustomerDao", "type": "repository", "package": "com.collaberadigital.cove.repository"},
+      {"id": "CustomerDaoImpl", "type": "repository_impl", "package": "com.collaberadigital.cove.repository.repositoryIml"}
+    ],
+    "edges": [
+      {
+        "source": "AuthRestController",
+        "target": "UserService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AuthRestController",
+        "target": "AuthService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AdminController",
+        "target": "AdminService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AdminController",
+        "target": "ActionHistoryService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "PerformaceController",
+        "target": "OneViewService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "UserServiceImpl",
+        "target": "UserRepository",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "UserServiceImpl",
+        "target": "AccessTokenRepo",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "UserServiceImpl",
+        "target": "RefreshTokenRepo",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "UserServiceImpl",
+        "target": "EmailService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AdminServiceImpl",
+        "target": "UserRepository",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AdminServiceImpl",
+        "target": "EmailService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AdminServiceImpl",
+        "target": "ActionHistoryService",
+        "dependency_type": "service_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AuthServiceImpl",
+        "target": "AccessTokenRepo",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "AuthServiceImpl",
+        "target": "RefreshTokenRepo",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "ActionHistoryServiceImpl",
+        "target": "ActionHistoryRepo",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source": "CustomerDaoImpl",
+        "target": "UserRepository",
+        "dependency_type": "repository_call",
+        "direction": "outbound",
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/repositoryIml/CustomerDaoImpl.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "library_dependencies": {
+    "libraries": [
+      {
+        "name": "spring-boot-starter-parent",
+        "version": "3.2.5",
+        "ecosystem": "maven",
+        "scope": "parent",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "No direct evidence of newer version in repository artifacts",
+        "evidence": ["pom.xml"]
+      },
+      {
+        "name": "spring-boot-starter-webflux",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "spring-boot-starter-data-jpa",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "spring-boot-starter-security",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "spring-boot-starter-mail",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "spring-boot-starter-actuator",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "spring-cloud-starter-netflix-eureka-client",
+        "version": "managed by spring-cloud-dependencies 2023.0.1",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version managed by Spring Cloud BOM",
+        "evidence": ["pom.xml:44-47"]
+      },
+      {
+        "name": "mysql-connector-j",
+        "version": "8.0.33",
+        "ecosystem": "maven",
+        "scope": "runtime",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "No direct evidence of newer version in repository artifacts",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "jjwt-api",
+        "version": "0.11.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "No direct evidence of newer version in repository artifacts",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "jjwt-impl",
+        "version": "0.11.5",
+        "ecosystem": "maven",
+        "scope": "runtime",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "No direct evidence of newer version in repository artifacts",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "jjwt-jackson",
+        "version": "0.11.5",
+        "ecosystem": "maven",
+        "scope": "runtime",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "No direct evidence of newer version in repository artifacts",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "hibernate-validator",
+        "version": "6.0.16.Final",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "No direct evidence of newer version in repository artifacts",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "lombok",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "provided",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "micrometer-registry-prometheus",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "runtime",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      },
+      {
+        "name": "spring-boot-starter-freemarker",
+        "version": "inherited from parent 3.2.5",
+        "ecosystem": "maven",
+        "scope": "compile",
+        "manifest_path": "pom.xml",
+        "risk_flags": [],
+        "outdated_signal": "unknown",
+        "reason": "Version inherited from parent POM",
+        "evidence": ["pom.xml:21-127"]
+      }
+    ]
+  },
+  "integration_touchpoints": {
+    "touchpoints": [
+      {
+        "name": "OneView API",
+        "type": "REST",
+        "direction": "outbound",
+        "protocol_or_tech": "HTTPS/REST",
+        "source_module": "OneViewServiceImpl",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:28"],
+        "confidence": "high",
+        "details": {
+          "url": "https://cdoneview.avateam.io",
+          "authentication": "Custom token-based (X-Ava-Access-Token header)",
+          "purpose": "Fetch project performance and RAG status data"
+        }
+      },
+      {
+        "name": "AWS RDS MySQL",
+        "type": "DB",
+        "direction": "outbound",
+        "protocol_or_tech": "JDBC/MySQL",
+        "source_module": "JPA Repositories",
+        "evidence": ["src/main/resources/application-dev.properties:48"],
+        "confidence": "high",
+        "details": {
+          "endpoint": "cove-db.chioww02cxoo.ap-south-1.rds.amazonaws.com:3306",
+          "database": "cove",
+          "driver": "com.mysql.cj.jdbc.Driver"
+        }
+      },
+      {
+        "name": "Gmail SMTP",
+        "type": "external SaaS",
+        "direction": "outbound",
+        "protocol_or_tech": "SMTP/SSL",
+        "source_module": "EmailServiceImpl",
+        "evidence": ["src/main/resources/application-dev.properties:41-46"],
+        "confidence": "high",
+        "details": {
+          "host": "smtp.gmail.com",
+          "port": 465,
+          "protocol": "smtp",
+          "ssl_enabled": true,
+          "purpose": "Send email notifications (approval, rejection, pending)"
+        }
+      },
+      {
+        "name": "Netflix Eureka",
+        "type": "REST",
+        "direction": "bidirectional",
+        "protocol_or_tech": "HTTP/REST",
+        "source_module": "cove-user-service",
+        "evidence": ["pom.xml:44-47", "src/main/resources/application-dev.properties:2-5"],
+        "confidence": "high",
+        "details": {
+          "service_url": "http://k8s-coveeurekaingress-099090752f-315466093.ap-south-1.elb.amazonaws.com/eureka",
+          "purpose": "Service discovery and registration"
+        }
+      },
+      {
+        "name": "Prometheus",
+        "type": "REST",
+        "direction": "inbound",
+        "protocol_or_tech": "HTTP/Prometheus scrape",
+        "source_module": "Spring Actuator",
+        "evidence": ["kubernetes/deployment.yaml:1-36"],
+        "confidence": "high",
+        "details": {
+          "scrape_port": 8090,
+          "scrape_path": "/actuator/prometheus",
+          "purpose": "Metrics collection and monitoring"
+        }
+      },
+      {
+        "name": "AWS ECR",
+        "type": "file",
+        "direction": "outbound",
+        "protocol_or_tech": "Docker Registry API",
+        "source_module": "CI/CD Pipeline",
+        "evidence": ["buildspec.yml"],
+        "confidence": "high",
+        "details": {
+          "purpose": "Docker image storage and retrieval"
+        }
+      },
+      {
+        "name": "AWS EKS",
+        "type": "REST",
+        "direction": "bidirectional",
+        "protocol_or_tech": "Kubernetes API",
+        "source_module": "CI/CD Pipeline",
+        "evidence": ["buildspec.yml", "kubernetes/deployment.yaml", "kubernetes/service.yaml"],
+        "confidence": "high",
+        "details": {
+          "purpose": "Container orchestration and deployment"
+        }
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T00:00:00Z",
+    "inputs": {
+      "repo_url": "ramanohar/AAVA-Reverse-Engineering-POC",
+      "branch": "main",
+      "run_mode": "build"
+    },
+    "limits_or_unknowns": [
+      "Library version outdated signals marked as 'unknown' due to lack of direct evidence in repository artifacts; external vulnerability databases not consulted",
+      "No CVE data included; no direct evidence of vulnerabilities found in repository artifacts",
+      "Service-to-service call graph based on repository summary and typical Spring Boot patterns; detailed code analysis not performed",
+      "Integration touchpoint details extracted from configuration files; runtime behavior not observed",
+      "No API specification (Swagger/OpenAPI) found; endpoint details derived from controller annotations",
+      "Database schema relationships inferred from JPA entities; no database migration scripts analyzed",
+      "Email template usage inferred from service layer; actual template rendering not validated",
+      "External API authentication details (OneView) noted as hardcoded in source; security risk flagged in repository summary"
+    ]
+  }
+}

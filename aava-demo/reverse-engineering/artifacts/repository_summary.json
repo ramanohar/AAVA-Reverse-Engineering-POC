@@ -1,0 +1,469 @@
+{
+  "repository": "ramanohar/AAVA-Reverse-Engineering-POC",
+  "analysis_date": "2025-01-16",
+  "primary_language": "Java",
+  "build_system": "Maven",
+  "framework": "Spring Boot 3.2.5",
+  "java_version": "17",
+  "application_type": "Reactive Web Service",
+  "modules": [
+    {
+      "name": "cove-user-service",
+      "type": "Spring Boot Application",
+      "description": "User authentication and management service with JWT-based security",
+      "evidence": ["pom.xml:13-15", "src/main/java/com/collaberadigital/cove/CoveUserServiceApplication.java"]
+    }
+  ],
+  "technology_stack": {
+    "backend_framework": "Spring Boot 3.2.5",
+    "reactive_stack": "Spring WebFlux",
+    "security": "Spring Security with JWT (jjwt 0.11.5)",
+    "database": "MySQL 8.0.33 with JPA/Hibernate",
+    "service_discovery": "Netflix Eureka Client",
+    "monitoring": "Micrometer + Prometheus",
+    "email": "Spring Mail + FreeMarker templates",
+    "validation": "Hibernate Validator 6.0.16",
+    "utilities": "Lombok, Jackson",
+    "evidence": ["pom.xml:21-127"]
+  },
+  "build_configuration": {
+    "build_tool": "Maven",
+    "wrapper_version": "3.9.6",
+    "parent_pom": "spring-boot-starter-parent:3.2.5",
+    "spring_cloud_version": "2023.0.1",
+    "plugins": ["spring-boot-maven-plugin", "maven-resources-plugin:3.1.0"],
+    "evidence": ["pom.xml", ".mvn/wrapper/maven-wrapper.properties"]
+  },
+  "deployment": {
+    "containerization": "Docker",
+    "base_image": "amazoncorretto:17",
+    "exposed_port": 8090,
+    "artifact": "cove-user-service-0.0.1-SNAPSHOT.jar",
+    "orchestration": "Kubernetes (AWS EKS)",
+    "ci_cd": "AWS CodeBuild",
+    "evidence": ["Dockerfile", "buildspec.yml", "kubernetes/deployment.yaml", "kubernetes/service.yaml"]
+  },
+  "kubernetes_configuration": {
+    "deployment_name": "cove-user-backend",
+    "replicas": 2,
+    "service_type": "ClusterIP",
+    "service_port": 80,
+    "container_port": 8090,
+    "resources": {
+      "requests": {"cpu": "250m", "memory": "512Mi"},
+      "limits": {"cpu": "250m", "memory": "1024Mi"}
+    },
+    "monitoring": {"prometheus_scrape": true, "prometheus_port": "8090"},
+    "evidence": ["kubernetes/deployment.yaml:1-36", "kubernetes/service.yaml"]
+  },
+  "entry_points": [
+    {
+      "type": "Main Application Class",
+      "class": "CoveUserServiceApplication",
+      "package": "com.collaberadigital.cove",
+      "annotations": ["@SpringBootApplication", "@ComponentScan", "@EnableJpaRepositories"],
+      "evidence": ["src/main/java/com/collaberadigital/cove/CoveUserServiceApplication.java:8-17"]
+    },
+    {
+      "type": "REST Controller",
+      "class": "AuthRestController",
+      "endpoints": [
+        {"method": "POST", "path": "/login", "description": "User authentication"},
+        {"method": "POST", "path": "/register", "description": "User registration"},
+        {"method": "POST", "path": "/check-access-token", "description": "Validate access token"},
+        {"method": "POST", "path": "/refresh-token", "description": "Refresh JWT token"},
+        {"method": "POST", "path": "/revoke-access-token", "description": "Revoke access token"},
+        {"method": "POST", "path": "/revoke-refresh-token", "description": "Revoke refresh token"}
+      ],
+      "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"]
+    },
+    {
+      "type": "REST Controller",
+      "class": "AdminController",
+      "base_path": "/api/v1/admin",
+      "endpoints": [
+        {"method": "PUT", "path": "/{toEmail}/onboarding-status", "description": "Update user onboarding status"},
+        {"method": "PUT", "path": "/{toEmail}/account-status", "description": "Update user account status"},
+        {"method": "PUT", "path": "/{toEmail}/role", "description": "Update user role"},
+        {"method": "GET", "path": "/user-details/{email}", "description": "Get user details"},
+        {"method": "GET", "path": "/users", "description": "Get paginated user list"},
+        {"method": "GET", "path": "/action-history", "description": "Get action history with pagination"}
+      ],
+      "security": "Requires ADMIN role",
+      "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java", "src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java:44-51"]
+    },
+    {
+      "type": "REST Controller",
+      "class": "PerformaceController",
+      "endpoints": [
+        {"method": "GET", "path": "/performance", "description": "Get performance data from OneView"}
+      ],
+      "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java"]
+    },
+    {
+      "type": "Health Check",
+      "class": "Healthcheck",
+      "endpoints": [
+        {"method": "GET", "path": "/healthcheck", "description": "Application health check"}
+      ],
+      "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/Healthcheck.java"]
+    }
+  ],
+  "security_configuration": {
+    "framework": "Spring Security (WebFlux)",
+    "authentication": "JWT (Access Token + Refresh Token)",
+    "token_storage": "Database (access_token, refresh_token tables)",
+    "password_encoding": "BCrypt",
+    "jwt_library": "jjwt 0.11.5",
+    "access_token_validity": "30 minutes (1800000ms)",
+    "refresh_token_validity": "24 hours (86400000ms)",
+    "security_context": "NoOpServerSecurityContextRepository (stateless)",
+    "protected_endpoints": ["/api/v1/admin/**"],
+    "public_endpoints": ["All other endpoints"],
+    "evidence": [
+      "src/main/java/com/collaberadigital/cove/configuration/SecurityConfig.java",
+      "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java:31-33",
+      "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java:33-35",
+      "src/main/resources/application-dev.properties:32-35"
+    ]
+  },
+  "database_schema": {
+    "entities": [
+      {
+        "name": "UserEntity",
+        "table": "users",
+        "primary_key": "user_id (auto-increment)",
+        "key_fields": ["email (unique)", "registration_id", "role", "onboarding_status", "is_active"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java:14-75"]
+      },
+      {
+        "name": "AccessToken",
+        "table": "access_token",
+        "primary_key": "id (auto-increment)",
+        "foreign_keys": ["user_id -> users.user_id"],
+        "key_fields": ["token (TEXT)", "expired", "revoked", "created_at"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java"]
+      },
+      {
+        "name": "RefreshToken",
+        "table": "refresh_token",
+        "primary_key": "id (auto-increment)",
+        "foreign_keys": ["user_id -> users.user_id"],
+        "key_fields": ["token (TEXT)", "expired", "revoked", "created_at"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java"]
+      },
+      {
+        "name": "ActionHistory",
+        "table": "action_history",
+        "primary_key": "id (auto-increment)",
+        "key_fields": ["user_email", "action", "action_type", "update_by_admin_email", "created_at"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java"]
+      }
+    ],
+    "connection": {
+      "driver": "com.mysql.cj.jdbc.Driver",
+      "url": "jdbc:mysql://cove-db.chioww02cxoo.ap-south-1.rds.amazonaws.com:3306/cove",
+      "jpa_settings": {"generate-ddl": true, "hibernate.order_inserts": true},
+      "evidence": ["src/main/resources/application-dev.properties:47-55"]
+    }
+  },
+  "service_layer": {
+    "services": [
+      {
+        "interface": "UserService",
+        "implementation": "UserServiceImpl",
+        "responsibilities": ["User registration", "User login", "User approval"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/UserService.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"]
+      },
+      {
+        "interface": "AdminService",
+        "implementation": "AdminServiceImpl",
+        "responsibilities": ["Update onboarding status", "Update account status", "Update user role", "Get user details", "Paginated user listing"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/AdminService.java", "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"]
+      },
+      {
+        "interface": "AuthService",
+        "implementation": "AuthServiceImpl",
+        "responsibilities": ["Check access token", "Refresh token", "Revoke access token", "Revoke refresh token"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/AuthService.java", "src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java"]
+      },
+      {
+        "interface": "EmailService",
+        "implementation": "EmailServiceImpl",
+        "responsibilities": ["Send rejection email", "Send approval email", "Send pending approval email"],
+        "email_templates": ["email-template-rejected.ftl", "email-template-approved.ftl", "email-template-pending-approval.ftl"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/EmailService.java", "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java", "src/main/resources/templates/"]
+      },
+      {
+        "interface": "ActionHistoryService",
+        "implementation": "ActionHistoryServiceImpl",
+        "responsibilities": ["Save action history", "Get paginated action history"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/ActionHistoryService.java", "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"]
+      },
+      {
+        "interface": "OneViewService",
+        "implementation": "OneViewServiceImpl",
+        "responsibilities": ["Fetch performance data from external OneView API"],
+        "external_integration": "https://cdoneview.avateam.io",
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/OneViewService.java", "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:28"]
+      }
+    ]
+  },
+  "repository_layer": {
+    "repositories": [
+      {
+        "interface": "UserRepository",
+        "extends": "JpaRepository<UserEntity, Integer>",
+        "custom_queries": [
+          "findByEmail",
+          "existsByRegistrationId",
+          "findByOnboardingStatusInAndSubmissionDate (with pagination)",
+          "findByOnboardingStatusInAndRoleIn (with pagination)"
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/UserRepository.java"]
+      },
+      {
+        "interface": "AccessTokenRepo",
+        "extends": "JpaRepository<AccessToken, Long>",
+        "custom_queries": [
+          "findAllByUserUserIdAndExpiredFalseAndRevokedFalse",
+          "findFirstByTokenOrderByCreatedAtDesc",
+          "findByToken"
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/AccessTokenRepo.java"]
+      },
+      {
+        "interface": "RefreshTokenRepo",
+        "extends": "JpaRepository<RefreshToken, Long>",
+        "custom_queries": [
+          "findAllByUserUserIdAndExpiredFalseAndRevokedFalse",
+          "findFirstByTokenOrderByCreatedAtDesc",
+          "findByToken"
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/RefreshTokenRepo.java"]
+      },
+      {
+        "interface": "ActionHistoryRepo",
+        "extends": "JpaRepository<ActionHistory, Long>",
+        "custom_queries": [
+          "findByActionHistoryWithDate (complex JPQL with pagination)",
+          "findByActionHistoryWithoutDate (complex JPQL with pagination)"
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/ActionHistoryRepo.java"]
+      },
+      {
+        "interface": "CustomerDao",
+        "implementation": "CustomerDaoImpl",
+        "type": "Reactive custom DAO",
+        "methods": ["findByEmailReactive (returns Mono<UserEntity>)"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/repository/CustomerDao.java", "src/main/java/com/collaberadigital/cove/repository/repositoryIml/CustomerDaoImpl.java"]
+      }
+    ]
+  },
+  "configuration": {
+    "application_name": "cove-user-service",
+    "server_port": 8090,
+    "active_profile": "dev",
+    "web_application_type": "reactive",
+    "eureka_service_url": "http://k8s-coveeurekaingress-099090752f-315466093.ap-south-1.elb.amazonaws.com/eureka",
+    "actuator_endpoints": ["health", "info", "prometheus", "metrics"],
+    "cors_enabled": true,
+    "mail_config": {
+      "host": "smtp.gmail.com",
+      "port": 465,
+      "protocol": "smtp",
+      "ssl_enabled": true
+    },
+    "evidence": ["src/main/resources/application.properties", "src/main/resources/application-dev.properties"]
+  },
+  "exception_handling": {
+    "global_handler": "GlobalExceptionHandler",
+    "custom_exceptions": [
+      "CoveCustomException",
+      "UserCreationException",
+      "UserNotFoundException",
+      "CustomException (reactive)"
+    ],
+    "reactive_advice": "CustomControllerAdvice",
+    "evidence": [
+      "src/main/java/com/collaberadigital/cove/exception/GlobalExceptionHandler.java",
+      "src/main/java/com/collaberadigital/cove/exception/reactive/CustomControllerAdvice.java"
+    ]
+  },
+  "testing": {
+    "framework": "JUnit 5 + Spring Boot Test",
+    "test_files": [
+      "src/test/java/com/collaberadigital/cove/CoveUserServiceApplicationTests.java (commented out)"
+    ],
+    "status": "Minimal test coverage - tests are commented out",
+    "evidence": ["src/test/java/com/collaberadigital/cove/CoveUserServiceApplicationTests.java"]
+  },
+  "ci_cd_pipeline": {
+    "platform": "AWS CodeBuild",
+    "phases": [
+      {
+        "name": "install",
+        "runtime": "corretto17",
+        "actions": ["Install Maven"]
+      },
+      {
+        "name": "pre_build",
+        "actions": ["ECR login", "Install kubectl", "Configure EKS cluster"]
+      },
+      {
+        "name": "build",
+        "actions": ["mvn clean install", "Docker build", "Docker tag"]
+      },
+      {
+        "name": "post_build",
+        "actions": ["Docker push to ECR", "Deploy to EKS", "Apply Kubernetes manifests", "Rollout restart if exists"]
+      }
+    ],
+    "parameter_store": "/cove/staging/cove-backend",
+    "evidence": ["buildspec.yml"]
+  },
+  "key_features": [
+    "JWT-based authentication with access and refresh tokens",
+    "User registration with admin approval workflow",
+    "Role-based access control (CUSTOMER, ADMIN)",
+    "User onboarding status management (pending_approval, approved, reject)",
+    "Account activation/deactivation",
+    "Action history tracking for audit",
+    "Email notifications (approval, rejection, pending)",
+    "Token revocation and refresh mechanism",
+    "Reactive programming with Spring WebFlux",
+    "Integration with external OneView API for performance data",
+    "Prometheus metrics and health checks",
+    "AWS EKS deployment with auto-scaling"
+  ],
+  "architectural_patterns": [
+    "Layered Architecture (Controller -> Service -> Repository)",
+    "Reactive Programming (WebFlux, Mono, Flux)",
+    "Repository Pattern with JPA",
+    "DTO Pattern for data transfer",
+    "Builder Pattern (Lombok @Builder)",
+    "Dependency Injection (Spring)",
+    "Filter Chain Pattern (JWT authentication filter)",
+    "Template Method Pattern (FreeMarker email templates)"
+  ],
+  "security_features": [
+    "JWT token-based authentication",
+    "BCrypt password hashing",
+    "Token expiration and revocation",
+    "Stateless session management",
+    "Role-based endpoint protection",
+    "CSRF disabled (stateless API)",
+    "Custom authentication filter",
+    "User account status validation"
+  ],
+  "external_integrations": [
+    {
+      "name": "OneView API",
+      "url": "https://cdoneview.avateam.io",
+      "purpose": "Fetch project performance and RAG status data",
+      "authentication": "Custom token-based (X-Ava-Access-Token header)",
+      "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java:28-75"]
+    },
+    {
+      "name": "Gmail SMTP",
+      "purpose": "Send email notifications",
+      "configuration": "smtp.gmail.com:465 with SSL",
+      "evidence": ["src/main/resources/application-dev.properties:41-46"]
+    },
+    {
+      "name": "Netflix Eureka",
+      "purpose": "Service discovery and registration",
+      "evidence": ["pom.xml:44-47", "src/main/resources/application-dev.properties:2-5"]
+    },
+    {
+      "name": "AWS RDS MySQL",
+      "purpose": "Primary database",
+      "endpoint": "cove-db.chioww02cxoo.ap-south-1.rds.amazonaws.com:3306",
+      "evidence": ["src/main/resources/application-dev.properties:48"]
+    }
+  ],
+  "code_quality_observations": [
+    "Extensive use of Lombok reduces boilerplate",
+    "Reactive programming with proper Mono/Flux usage",
+    "Comprehensive exception handling",
+    "Separation of concerns (DTOs, entities, services)",
+    "Custom validation and error responses",
+    "Commented-out code blocks should be removed",
+    "Test coverage is minimal (tests commented out)",
+    "Hardcoded credentials in OneViewServiceImpl (security risk)",
+    "Large commented code blocks in entity classes"
+  ],
+  "potential_improvements": [
+    "Add comprehensive unit and integration tests",
+    "Remove commented-out code",
+    "Externalize OneView credentials to configuration",
+    "Add API documentation (Swagger/OpenAPI)",
+    "Implement request/response logging",
+    "Add rate limiting for authentication endpoints",
+    "Implement password reset functionality",
+    "Add database migration tool (Flyway/Liquibase)",
+    "Enhance error messages with i18n support",
+    "Add caching layer (Redis) for tokens"
+  ],
+  "dependencies_summary": {
+    "total_dependencies": 15,
+    "spring_boot_starters": 8,
+    "security_libraries": 4,
+    "database_libraries": 2,
+    "monitoring_libraries": 2,
+    "utility_libraries": 3,
+    "test_libraries": 2
+  },
+  "file_statistics": {
+    "total_files": 104,
+    "java_files": 85,
+    "configuration_files": 7,
+    "template_files": 3,
+    "kubernetes_manifests": 2,
+    "build_files": 4,
+    "documentation_files": 0
+  },
+  "gaps_and_unknowns": [
+    {
+      "area": "API Documentation",
+      "description": "No Swagger/OpenAPI specification found",
+      "confidence": "high"
+    },
+    {
+      "area": "Database Migrations",
+      "description": "No Flyway or Liquibase migrations detected; relies on JPA auto-DDL",
+      "confidence": "high"
+    },
+    {
+      "area": "Logging Configuration",
+      "description": "No explicit logback.xml or log4j2.xml configuration",
+      "confidence": "medium"
+    },
+    {
+      "area": "Caching Strategy",
+      "description": "No caching implementation (Redis, Caffeine) detected",
+      "confidence": "high"
+    },
+    {
+      "area": "Rate Limiting",
+      "description": "No rate limiting or throttling mechanism found",
+      "confidence": "high"
+    },
+    {
+      "area": "Password Reset",
+      "description": "No password reset or forgot password functionality",
+      "confidence": "high"
+    }
+  ],
+  "notes": [
+    "This is a production-ready Spring Boot reactive microservice for user management",
+    "Deployed on AWS EKS with automated CI/CD pipeline",
+    "Uses JWT for stateless authentication with token storage in database",
+    "Integrates with external OneView API for performance metrics",
+    "Email notifications handled via Gmail SMTP with FreeMarker templates",
+    "Prometheus metrics enabled for monitoring",
+    "Security concern: Hardcoded credentials in OneViewServiceImpl should be externalized",
+    "Test coverage needs significant improvement",
+    "Consider adding API documentation and database migration tools"
+  ]
+}

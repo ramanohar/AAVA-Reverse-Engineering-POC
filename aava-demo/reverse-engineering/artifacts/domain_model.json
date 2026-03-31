@@ -1,0 +1,437 @@
+{
+  "domain_glossary": {
+    "terms": [
+      {
+        "term": "User",
+        "definition": "An individual who registers and interacts with the COVE user management system. Users have roles (CUSTOMER or ADMIN), onboarding status, and account activation state.",
+        "aliases": ["Customer", "Admin", "Registered User"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java", "src/main/java/com/collaberadigital/cove/service/UserService.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Onboarding",
+        "definition": "The process by which a newly registered user is reviewed and approved or rejected by an administrator before gaining full system access.",
+        "aliases": ["User Approval", "Registration Approval"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/utils/constant/OnboardingStatus.java", "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Onboarding Status",
+        "definition": "The current state of a user's onboarding process. Valid values: pending_approval, approved, reject.",
+        "aliases": ["Approval Status"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/utils/constant/OnboardingStatus.java", "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Access Token",
+        "definition": "A short-lived JWT token (30 minutes validity) used to authenticate API requests. Stored in the database with expiration and revocation flags.",
+        "aliases": ["JWT Access Token", "Auth Token"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java", "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Refresh Token",
+        "definition": "A long-lived JWT token (24 hours validity) used to obtain new access tokens without re-authentication. Stored in the database with expiration and revocation flags.",
+        "aliases": ["JWT Refresh Token"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java", "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Action History",
+        "definition": "An audit log entry recording administrative actions performed on user accounts, including onboarding status changes, role updates, and account activation/deactivation.",
+        "aliases": ["Audit Log", "Admin Action Log"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java", "src/main/java/com/collaberadigital/cove/service/ActionHistoryService.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Role",
+        "definition": "A user's permission level within the system. Valid values: CUSTOMER (standard user) or ADMIN (administrative privileges).",
+        "aliases": ["User Role", "Permission Level"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/utils/constant/UserRole.java", "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Account Status",
+        "definition": "Indicates whether a user account is currently active or deactivated. Active accounts can authenticate; deactivated accounts cannot.",
+        "aliases": ["Active Status", "Account State"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/utils/constant/AccountStatus.java", "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Registration",
+        "definition": "The process by which a new user creates an account in the system, providing personal and company information. Registration triggers the onboarding workflow.",
+        "aliases": ["Sign Up", "User Creation"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Authentication",
+        "definition": "The process of verifying a user's identity using email and password credentials, resulting in the issuance of access and refresh tokens.",
+        "aliases": ["Login", "Sign In"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Token Revocation",
+        "definition": "The process of invalidating access or refresh tokens, preventing their further use for authentication.",
+        "aliases": ["Token Invalidation", "Logout"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java", "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Email Notification",
+        "definition": "Automated email messages sent to users during onboarding workflow transitions (pending approval, approved, rejected).",
+        "aliases": ["Email Alert", "Notification"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/EmailService.java", "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "term": "Performance Data",
+        "definition": "Project performance metrics and RAG (Red-Amber-Green) status information retrieved from the external OneView API.",
+        "aliases": ["Project Metrics", "RAG Status"],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/OneViewService.java", "src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "business_entities": {
+    "entities": [
+      {
+        "name": "User",
+        "purpose": "Represents an individual registered in the COVE system with authentication credentials, role-based permissions, and onboarding workflow state.",
+        "key_attributes": [
+          "userId (Integer, primary key)",
+          "email (String, unique, required)",
+          "password (String, BCrypt hashed)",
+          "firstname (String)",
+          "lastname (String)",
+          "company (String, required)",
+          "country (String)",
+          "role (String: CUSTOMER | ADMIN)",
+          "onboardingStatus (String: pending_approval | approved | reject)",
+          "isActive (Boolean)",
+          "registrationId (String)",
+          "designation (String)",
+          "clientId (String)",
+          "clientName (String)",
+          "clientOneView (String)",
+          "createdAt (LocalDateTime)",
+          "lastUpdatedAt (LocalDateTime)",
+          "lastUpdatedBy (String)"
+        ],
+        "owned_by": "User Management Context",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "AccessToken",
+        "purpose": "Represents a short-lived JWT token used for API authentication. Tracks token validity, expiration, and revocation status.",
+        "key_attributes": [
+          "id (Long, primary key)",
+          "token (String, TEXT)",
+          "tokenType (TokenType enum: BEARER)",
+          "expired (Boolean)",
+          "revoked (Boolean)",
+          "createdAt (Date, auto-generated)",
+          "user (UserEntity, foreign key)"
+        ],
+        "owned_by": "Authentication & Authorization Context",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "RefreshToken",
+        "purpose": "Represents a long-lived JWT token used to obtain new access tokens without re-authentication. Tracks token validity, expiration, and revocation status.",
+        "key_attributes": [
+          "id (Long, primary key)",
+          "token (String, TEXT)",
+          "tokenType (TokenType enum: BEARER)",
+          "expired (Boolean)",
+          "revoked (Boolean)",
+          "createdAt (Date, auto-generated)",
+          "user (UserEntity, foreign key)"
+        ],
+        "owned_by": "Authentication & Authorization Context",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "ActionHistory",
+        "purpose": "Audit log entry recording administrative actions performed on user accounts for compliance and traceability.",
+        "key_attributes": [
+          "id (Long, primary key)",
+          "userName (String)",
+          "userEmail (String)",
+          "userRole (String)",
+          "userCompany (String)",
+          "updateByAdminName (String)",
+          "updateByAdminEmail (String)",
+          "registrationId (String)",
+          "action (String: onboarding status | account status | role)",
+          "adminComments (String)",
+          "actionType (String: OnBoarding Status | Account Status | Role Status)",
+          "createdAt (LocalDateTime, auto-generated)",
+          "updatedAt (LocalDateTime)"
+        ],
+        "owned_by": "Audit & Compliance Context",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "entity_relationships": {
+    "relationships": [
+      {
+        "source_entity": "User",
+        "target_entity": "AccessToken",
+        "relationship_type": "one-to-many",
+        "description": "A User can have multiple AccessTokens over time. Each AccessToken belongs to exactly one User. Tokens are revoked and regenerated on each login.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/AccessToken.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source_entity": "User",
+        "target_entity": "RefreshToken",
+        "relationship_type": "one-to-many",
+        "description": "A User can have multiple RefreshTokens over time. Each RefreshToken belongs to exactly one User. Tokens are revoked and regenerated on each login.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/RefreshToken.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source_entity": "User",
+        "target_entity": "ActionHistory",
+        "relationship_type": "one-to-many",
+        "description": "A User (as subject) can have multiple ActionHistory entries recording administrative actions performed on their account. ActionHistory is not directly linked via foreign key but associated by userEmail.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java", "src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source_entity": "User (Admin)",
+        "target_entity": "ActionHistory",
+        "relationship_type": "one-to-many",
+        "description": "A User with ADMIN role can create multiple ActionHistory entries by performing administrative actions on other users. ActionHistory records the admin's email and name.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java", "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "source_entity": "User",
+        "target_entity": "User",
+        "relationship_type": "self-referential (audit trail)",
+        "description": "Users track who last updated their record via lastUpdatedBy field, creating an implicit relationship between users for audit purposes.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java", "src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java"],
+        "confidence": "medium"
+      }
+    ]
+  },
+  "bounded_contexts": {
+    "contexts": [
+      {
+        "name": "User Management",
+        "responsibilities": [
+          "User registration and profile management",
+          "User onboarding workflow (pending_approval → approved/reject)",
+          "Account activation and deactivation",
+          "Role assignment (CUSTOMER, ADMIN)",
+          "User search and pagination"
+        ],
+        "core_entities": ["User"],
+        "interfaces": [
+          {
+            "type": "REST API",
+            "endpoints": [
+              "POST /register",
+              "PUT /api/v1/admin/{toEmail}/onboarding-status",
+              "PUT /api/v1/admin/{toEmail}/account-status",
+              "PUT /api/v1/admin/{toEmail}/role",
+              "GET /api/v1/admin/user-details/{email}",
+              "GET /api/v1/admin/users"
+            ],
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java", "src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"]
+          },
+          {
+            "type": "Service Layer",
+            "services": ["UserService", "AdminService"],
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/UserService.java", "src/main/java/com/collaberadigital/cove/service/AdminService.java"]
+          },
+          {
+            "type": "Email Notifications",
+            "description": "Sends onboarding status notifications (pending, approved, rejected)",
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/EmailService.java"]
+          }
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/UserServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "Authentication & Authorization",
+        "responsibilities": [
+          "User authentication (login)",
+          "JWT access token generation and validation (30-minute validity)",
+          "JWT refresh token generation and validation (24-hour validity)",
+          "Token revocation (logout)",
+          "Token refresh workflow",
+          "Password encryption (BCrypt)",
+          "Role-based access control enforcement"
+        ],
+        "core_entities": ["AccessToken", "RefreshToken", "User"],
+        "interfaces": [
+          {
+            "type": "REST API",
+            "endpoints": [
+              "POST /login",
+              "POST /check-access-token",
+              "POST /refresh-token",
+              "POST /revoke-access-token",
+              "POST /revoke-refresh-token"
+            ],
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AuthRestController.java"]
+          },
+          {
+            "type": "Service Layer",
+            "services": ["AuthService", "UserService"],
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/AuthService.java", "src/main/java/com/collaberadigital/cove/service/UserService.java"]
+          },
+          {
+            "type": "Security Components",
+            "components": ["JwtAccessTokenUtil", "JwtRefreshTokenUtil", "JwtTokenAuthenticationFilter", "CustomUserDetailsService"],
+            "evidence": ["src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java", "src/main/java/com/collaberadigital/cove/security/JwtRefreshTokenUtil.java"]
+          }
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/AuthServiceImpl.java", "src/main/java/com/collaberadigital/cove/security/JwtAccessTokenUtil.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "Audit & Compliance",
+        "responsibilities": [
+          "Recording administrative actions on user accounts",
+          "Tracking onboarding status changes",
+          "Tracking account activation/deactivation",
+          "Tracking role changes",
+          "Providing audit trail with admin attribution",
+          "Paginated audit log retrieval with filtering"
+        ],
+        "core_entities": ["ActionHistory"],
+        "interfaces": [
+          {
+            "type": "REST API",
+            "endpoints": [
+              "GET /api/v1/admin/action-history"
+            ],
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/AdminController.java"]
+          },
+          {
+            "type": "Service Layer",
+            "services": ["ActionHistoryService"],
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/ActionHistoryService.java"]
+          }
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/ActionHistoryServiceImpl.java", "src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java"],
+        "confidence": "high"
+      },
+      {
+        "name": "External Integration",
+        "responsibilities": [
+          "Integration with OneView API for project performance data",
+          "Fetching RAG (Red-Amber-Green) status for projects",
+          "OneView authentication and token management",
+          "Email delivery via Gmail SMTP"
+        ],
+        "core_entities": [],
+        "interfaces": [
+          {
+            "type": "REST API",
+            "endpoints": [
+              "GET /performance"
+            ],
+            "evidence": ["src/main/java/com/collaberadigital/cove/controller/impl/PerformaceController.java"]
+          },
+          {
+            "type": "Service Layer",
+            "services": ["OneViewService", "EmailService"],
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/OneViewService.java", "src/main/java/com/collaberadigital/cove/service/EmailService.java"]
+          },
+          {
+            "type": "External APIs",
+            "integrations": [
+              "OneView API (https://cdoneview.avateam.io)",
+              "Gmail SMTP (smtp.gmail.com:465)"
+            ],
+            "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"]
+          }
+        ],
+        "evidence": ["src/main/java/com/collaberadigital/cove/service/impl/OneViewServiceImpl.java", "src/main/java/com/collaberadigital/cove/service/impl/EmailServiceImpl.java"],
+        "confidence": "high"
+      }
+    ]
+  },
+  "ubiquitous_language_recommendations": {
+    "recommended_terms": [
+      {
+        "term": "Onboarding",
+        "usage": "Prefer 'onboarding' over 'approval' or 'registration approval' to describe the user review process.",
+        "rationale": "Consistently used in code (OnboardingStatus, updateUserOnboardingStatus) and aligns with business process terminology."
+      },
+      {
+        "term": "Access Token",
+        "usage": "Use 'access token' for short-lived authentication tokens; avoid 'auth token' or 'JWT token'.",
+        "rationale": "Distinguishes from refresh tokens and matches entity naming (AccessToken)."
+      },
+      {
+        "term": "Refresh Token",
+        "usage": "Use 'refresh token' for long-lived tokens used to obtain new access tokens.",
+        "rationale": "Matches entity naming (RefreshToken) and clearly differentiates from access tokens."
+      },
+      {
+        "term": "Action History",
+        "usage": "Use 'action history' for audit logs; avoid 'audit log' or 'admin log'.",
+        "rationale": "Matches entity naming (ActionHistory) and service naming (ActionHistoryService)."
+      },
+      {
+        "term": "Account Status",
+        "usage": "Use 'account status' to refer to active/deactivated state; avoid 'active status' or 'account state'.",
+        "rationale": "Matches constant naming (AccountStatus) and API endpoint naming."
+      }
+    ],
+    "naming_conflicts": [
+      {
+        "conflict": "User vs Customer",
+        "description": "The term 'Customer' is used as a role value (UserRole.Customer) but 'User' is the entity name (UserEntity). This creates ambiguity.",
+        "recommendation": "Clarify that 'Customer' is a role type, not a separate entity. Use 'User with CUSTOMER role' in documentation.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/utils/constant/UserRole.java", "src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java"]
+      },
+      {
+        "conflict": "Onboarding Status vs Account Status",
+        "description": "Two similar-sounding status fields: onboardingStatus (pending_approval/approved/reject) and isActive (boolean account status).",
+        "recommendation": "Clearly distinguish: 'Onboarding Status' governs approval workflow; 'Account Status' governs active/deactivated state post-approval.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/UserEntity.java", "src/main/java/com/collaberadigital/cove/service/impl/AdminServiceImpl.java"]
+      },
+      {
+        "conflict": "Action vs Action Type",
+        "description": "ActionHistory entity has both 'action' (the status value) and 'actionType' (the category: OnBoarding Status, Account Status, Role Status).",
+        "recommendation": "Rename 'action' to 'actionValue' or 'statusValue' and keep 'actionType' for category. This clarifies the distinction.",
+        "evidence": ["src/main/java/com/collaberadigital/cove/model/entity/ActionHistory.java", "src/main/java/com/collaberadigital/cove/utils/constant/ActionType.java"]
+      }
+    ]
+  },
+  "analysis_metadata": {
+    "generated_at_utc": "2025-01-16T12:00:00Z",
+    "inputs": {
+      "repo_url": "ramanohar/AAVA-Reverse-Engineering-POC",
+      "branch": "main",
+      "run_mode": "build",
+      "prerequisite_artifacts": [
+        "repository_summary.json",
+        "dependency_graph.json"
+      ]
+    },
+    "limits_or_unknowns": [
+      "Database schema relationships inferred from JPA entity annotations; no database migration scripts or ER diagrams available.",
+      "Bounded context boundaries derived from package structure and service responsibilities; no explicit domain-driven design documentation found.",
+      "OneView API integration details limited to implementation code; no API specification or contract documentation available.",
+      "Email template content not analyzed; only service-level email sending logic reviewed.",
+      "Performance data domain model (RAG status, project metrics) not fully elaborated due to limited evidence in OneView integration code.",
+      "Client-related fields (clientId, clientName, clientOneView) in UserEntity have unclear business purpose; insufficient evidence to determine their role in the domain.",
+      "Registration ID generation and usage pattern not fully documented in code."
+    ]
+  }
+}
